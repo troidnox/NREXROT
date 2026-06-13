@@ -92,57 +92,10 @@ local function GetGui()
 	return newGui
 end
 
--- Cursor ScreenGui sits above everything else
-local _cursorGui = Instance.new("ScreenGui")
-_cursorGui.Name = "MacLibCursor"
-_cursorGui.ScreenInsets = Enum.ScreenInsets.None
-_cursorGui.ResetOnSpawn = false
-_cursorGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-_cursorGui.DisplayOrder = 2147483647
-_cursorGui.Parent = RunService:IsStudio()
-	and LocalPlayer:FindFirstChild("PlayerGui")
-	or (gethui and gethui())
-	or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
-
-local _cursor = Instance.new("Frame")
-_cursor.Name = "Cursor"
-_cursor.AnchorPoint = Vector2.new(0.5, 0.5)
-_cursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-_cursor.BorderSizePixel = 0
-_cursor.Size = UDim2.fromOffset(9, 1)
-_cursor.Visible = false
-_cursor.ZIndex = 10
-_cursor.Parent = _cursorGui
-
-local _cursorBorderH = Instance.new("Frame")
-_cursorBorderH.AnchorPoint = Vector2.new(0.5, 0.5)
-_cursorBorderH.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_cursorBorderH.BorderSizePixel = 0
-_cursorBorderH.Position = UDim2.fromScale(0.5, 0.5)
-_cursorBorderH.Size = UDim2.new(1, 2, 1, 2)
-_cursorBorderH.ZIndex = 9
-_cursorBorderH.Parent = _cursor
-
-local _cursorV = Instance.new("Frame")
-_cursorV.AnchorPoint = Vector2.new(0.5, 0.5)
-_cursorV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-_cursorV.BorderSizePixel = 0
-_cursorV.Position = UDim2.fromScale(0.5, 0.5)
-_cursorV.Size = UDim2.fromOffset(1, 9)
-_cursorV.ZIndex = 10
-_cursorV.Parent = _cursor
-
-local _cursorBorderV = Instance.new("Frame")
-_cursorBorderV.AnchorPoint = Vector2.new(0.5, 0.5)
-_cursorBorderV.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-_cursorBorderV.BorderSizePixel = 0
-_cursorBorderV.Position = UDim2.fromScale(0.5, 0.5)
-_cursorBorderV.Size = UDim2.new(1, 2, 1, 2)
-_cursorBorderV.ZIndex = 9
-_cursorBorderV.Parent = _cursorV
-
+-- Cursor state (frames created inside MacLib:Window after macLib ScreenGui exists)
+local _cursor, _cursorV
 local _mouse = LocalPlayer:GetMouse()
-local _cursorBinding = tostring(_cursor)
+local _cursorBinding = "MacLibCursor"
 local _oldMouseIcon
 
 local function _showCursor(state)
@@ -150,18 +103,19 @@ local function _showCursor(state)
 		_oldMouseIcon = UserInputService.MouseIconEnabled
 		UserInputService.MouseIconEnabled = false
 		RunService:BindToRenderStep(_cursorBinding, Enum.RenderPriority.Last.Value, function()
-			_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
-			_cursor.Visible = true
+			if _cursor then
+				_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
+				_cursor.Visible = true
+			end
 		end)
 	else
 		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
-		_cursor.Visible = false
+		if _cursor then _cursor.Visible = false end
 		if _oldMouseIcon ~= nil then
 			UserInputService.MouseIconEnabled = _oldMouseIcon
 		end
 	end
 end
-
 
 
 local function Tween(instance, tweeninfo, propertytable)
@@ -196,6 +150,44 @@ function MacLib:Window(Settings)
 	end
 
 	local macLib = GetGui()
+
+	-- Cursor — parented to same ScreenGui as UI, ZIndex 11000 = always on top (Obsidian style)
+	_cursor = Instance.new("Frame")
+	_cursor.Name = "Cursor"
+	_cursor.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_cursor.BorderSizePixel = 0
+	_cursor.Size = UDim2.fromOffset(9, 1)
+	_cursor.Visible = false
+	_cursor.ZIndex = 11000
+	_cursor.Parent = macLib
+
+	local _cursorBorderH = Instance.new("Frame")
+	_cursorBorderH.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorBorderH.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	_cursorBorderH.BorderSizePixel = 0
+	_cursorBorderH.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorBorderH.Size = UDim2.new(1, 2, 1, 2)
+	_cursorBorderH.ZIndex = 10999
+	_cursorBorderH.Parent = _cursor
+
+	_cursorV = Instance.new("Frame")
+	_cursorV.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_cursorV.BorderSizePixel = 0
+	_cursorV.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorV.Size = UDim2.fromOffset(1, 9)
+	_cursorV.ZIndex = 11000
+	_cursorV.Parent = _cursor
+
+	local _cursorBorderV = Instance.new("Frame")
+	_cursorBorderV.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorBorderV.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	_cursorBorderV.BorderSizePixel = 0
+	_cursorBorderV.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorBorderV.Size = UDim2.new(1, 2, 1, 2)
+	_cursorBorderV.ZIndex = 10999
+	_cursorBorderV.Parent = _cursorV
 
 	local notifications = Instance.new("Frame")
 	notifications.Name = "Notifications"
@@ -546,12 +538,11 @@ function MacLib:Window(Settings)
 	local userInfo = Instance.new("Frame")
 	userInfo.Name = "UserInfo"
 	userInfo.AnchorPoint = Vector2.new(0, 1)
-	userInfo.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	userInfo.BackgroundTransparency = 0.4
-	userInfo.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	userInfo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	userInfo.BackgroundTransparency = 0.97
 	userInfo.BorderSizePixel = 0
 	userInfo.Position = UDim2.fromScale(0, 1)
-	userInfo.Size = UDim2.new(1, 0, 0, 60)
+	userInfo.Size = UDim2.new(1, 0, 0, 50)
 
 	local userInfoCorner = Instance.new("UICorner")
 	userInfoCorner.CornerRadius = UDim.new(0, 8)
@@ -559,22 +550,20 @@ function MacLib:Window(Settings)
 
 	local userInfoStroke = Instance.new("UIStroke")
 	userInfoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	userInfoStroke.Color = Color3.fromRGB(138, 79, 255)
-	userInfoStroke.Transparency = 0.7
+	userInfoStroke.Color = Color3.fromRGB(255, 255, 255)
+	userInfoStroke.Transparency = 0.93
 	userInfoStroke.Parent = userInfo
 
 	local informationGroup = Instance.new("Frame")
 	informationGroup.Name = "InformationGroup"
-	informationGroup.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	informationGroup.BackgroundTransparency = 1
-	informationGroup.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	informationGroup.BorderSizePixel = 0
 	informationGroup.Size = UDim2.fromScale(1, 1)
 
 	local informationGroupUIPadding = Instance.new("UIPadding")
 	informationGroupUIPadding.Name = "InformationGroupUIPadding"
-	informationGroupUIPadding.PaddingBottom = UDim.new(0, 17)
-	informationGroupUIPadding.PaddingLeft = UDim.new(0, 25)
+	informationGroupUIPadding.PaddingLeft = UDim.new(0, 12)
+	informationGroupUIPadding.PaddingRight = UDim.new(0, 8)
 	informationGroupUIPadding.Parent = informationGroup
 
 	local informationGroupUIListLayout = Instance.new("UIListLayout")
@@ -582,99 +571,71 @@ function MacLib:Window(Settings)
 	informationGroupUIListLayout.FillDirection = Enum.FillDirection.Horizontal
 	informationGroupUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	informationGroupUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	informationGroupUIListLayout.Padding = UDim.new(0, 10)
 	informationGroupUIListLayout.Parent = informationGroup
 
 	local userId = LocalPlayer.UserId
 
 	local headshot = Instance.new("ImageLabel")
 	headshot.Name = "Headshot"
-	headshot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	headshot.BackgroundTransparency = 1
-	headshot.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	headshot.BorderSizePixel = 0
-	headshot.Size = UDim2.fromOffset(32, 32)
+	headshot.Size = UDim2.fromOffset(28, 28)
 	headshot.Image = "rbxassetid://83109184888967"
 
 	local uICorner3 = Instance.new("UICorner")
-	uICorner3.Name = "UICorner"
-	uICorner3.CornerRadius = UDim.new(1, 0)
+	uICorner3.CornerRadius = UDim.new(0, 6)
 	uICorner3.Parent = headshot
 
 	local baseUIStroke2 = Instance.new("UIStroke")
-	baseUIStroke2.Name = "BaseUIStroke"
 	baseUIStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	baseUIStroke2.Color = Color3.fromRGB(255, 255, 255)
-	baseUIStroke2.Transparency = 0.9
+	baseUIStroke2.Color = Color3.fromRGB(138, 79, 255)
+	baseUIStroke2.Transparency = 0.6
 	baseUIStroke2.Parent = headshot
 
 	headshot.Parent = informationGroup
 
 	local userAndDisplayFrame = Instance.new("Frame")
 	userAndDisplayFrame.Name = "UserAndDisplayFrame"
-	userAndDisplayFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	userAndDisplayFrame.BackgroundTransparency = 1
-	userAndDisplayFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	userAndDisplayFrame.BorderSizePixel = 0
 	userAndDisplayFrame.LayoutOrder = 1
-	userAndDisplayFrame.Size = UDim2.new(1, -42, 0, 32)
+	userAndDisplayFrame.Size = UDim2.new(1, -38, 0, 36)
+
+	local userAndDisplayFrameUIListLayout = Instance.new("UIListLayout")
+	userAndDisplayFrameUIListLayout.Padding = UDim.new(0, 2)
+	userAndDisplayFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	userAndDisplayFrameUIListLayout.Parent = userAndDisplayFrame
 
 	local displayName = Instance.new("TextLabel")
 	displayName.Name = "DisplayName"
-	displayName.FontFace = Font.new(
-		assets.interFont,
-		Enum.FontWeight.SemiBold,
-		Enum.FontStyle.Normal
-	)
+	displayName.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
 	displayName.RichText = true
 	displayName.Text = "<font color=\"rgb(178,120,255)\">Zero</font> <font color=\"rgb(138,79,255)\">Hub</font>"
 	displayName.TextColor3 = Color3.fromRGB(255, 255, 255)
 	displayName.TextSize = 13
-	displayName.TextTransparency = 0.1
-	displayName.TextTruncate = Enum.TextTruncate.SplitWord
+	displayName.TextTransparency = 0.05
+	displayName.TextTruncate = Enum.TextTruncate.AtEnd
 	displayName.TextXAlignment = Enum.TextXAlignment.Left
-	displayName.TextYAlignment = Enum.TextYAlignment.Top
-	displayName.AutomaticSize = Enum.AutomaticSize.XY
-	displayName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	displayName.BackgroundTransparency = 1
-	displayName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	displayName.BorderSizePixel = 0
+	displayName.Size = UDim2.new(1, 0, 0, 16)
 	displayName.Parent = userAndDisplayFrame
-	displayName.Size = UDim2.fromScale(1,0)
-
-	local userAndDisplayFrameUIPadding = Instance.new("UIPadding")
-	userAndDisplayFrameUIPadding.Name = "UserAndDisplayFrameUIPadding"
-	userAndDisplayFrameUIPadding.PaddingLeft = UDim.new(0, 8)
-	userAndDisplayFrameUIPadding.PaddingTop = UDim.new(0, 3)
-	userAndDisplayFrameUIPadding.Parent = userAndDisplayFrame
-
-	local userAndDisplayFrameUIListLayout = Instance.new("UIListLayout")
-	userAndDisplayFrameUIListLayout.Name = "UserAndDisplayFrameUIListLayout"
-	userAndDisplayFrameUIListLayout.Padding = UDim.new(0, 1)
-	userAndDisplayFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	userAndDisplayFrameUIListLayout.Parent = userAndDisplayFrame
 
 	local username = Instance.new("TextLabel")
 	username.Name = "Username"
-	username.FontFace = Font.new(
-		assets.interFont,
-		Enum.FontWeight.SemiBold,
-		Enum.FontStyle.Normal
-	)
+	username.FontFace = Font.new(assets.interFont)
 	username.Text = "v2.1  ·  discord.gg/zerohub"
 	username.TextColor3 = Color3.fromRGB(255, 255, 255)
-	username.TextSize = 12
-	username.TextTransparency = 0.7
-	username.TextTruncate = Enum.TextTruncate.SplitWord
+	username.TextSize = 11
+	username.TextTransparency = 0.65
+	username.TextTruncate = Enum.TextTruncate.AtEnd
 	username.TextXAlignment = Enum.TextXAlignment.Left
-	username.TextYAlignment = Enum.TextYAlignment.Top
-	username.AutomaticSize = Enum.AutomaticSize.XY
-	username.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	username.BackgroundTransparency = 1
-	username.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	username.BorderSizePixel = 0
 	username.LayoutOrder = 1
+	username.Size = UDim2.new(1, 0, 0, 14)
 	username.Parent = userAndDisplayFrame
-	username.Size = UDim2.fromScale(1,0)
 
 	userAndDisplayFrame.Parent = informationGroup
 
@@ -1713,17 +1674,12 @@ function MacLib:Window(Settings)
 
 					local headerStrip = Instance.new("Frame")
 					headerStrip.Name = "SectionHeader"
-					headerStrip.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
-					headerStrip.BackgroundTransparency = 0.88
+					headerStrip.BackgroundTransparency = 1
 					headerStrip.BorderSizePixel = 0
 					headerStrip.Size = UDim2.new(1, 0, 0, headerH)
 					headerStrip.LayoutOrder = -2
-					headerStrip.ClipsDescendants = true
+					headerStrip.ClipsDescendants = false
 					headerStrip.Parent = section
-
-					local headerStripCorner = Instance.new("UICorner")
-					headerStripCorner.CornerRadius = UDim.new(0, 8)
-					headerStripCorner.Parent = headerStrip
 
 					local xOff = 12
 
@@ -1744,7 +1700,6 @@ function MacLib:Window(Settings)
 							iconImg.Parent = headerStrip
 							if MacLib._accentElements then
 								table.insert(MacLib._accentElements, { inst=iconImg, prop="ImageColor3" })
-								table.insert(MacLib._accentElements, { inst=headerStrip, prop="BackgroundColor3" })
 							end
 							xOff = xOff + 24
 						end
@@ -1770,14 +1725,11 @@ function MacLib:Window(Settings)
 
 					local divLine = Instance.new("Frame")
 					divLine.Name = "SectionDivider"
-					divLine.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
-					divLine.BackgroundTransparency = 0.7
+					divLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					divLine.BackgroundTransparency = 0.9
 					divLine.BorderSizePixel = 0
 					divLine.Size = UDim2.new(1, 0, 0, 1)
 					divLine.LayoutOrder = -1
-					if MacLib._accentElements then
-						table.insert(MacLib._accentElements, { inst=divLine, prop="BackgroundColor3" })
-					end
 					divLine.Parent = section
 				end
 
@@ -5483,7 +5435,6 @@ function MacLib:Window(Settings)
 			onUnloadCallback()  
 		end
 		_showCursor(false)
-		_cursorGui:Destroy()
 		macLib:Destroy()
 		unloaded = true
 	end
