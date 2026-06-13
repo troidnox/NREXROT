@@ -92,6 +92,78 @@ local function GetGui()
 	return newGui
 end
 
+-- Cursor ScreenGui sits above everything else
+local _cursorGui = Instance.new("ScreenGui")
+_cursorGui.Name = "MacLibCursor"
+_cursorGui.ScreenInsets = Enum.ScreenInsets.None
+_cursorGui.ResetOnSpawn = false
+_cursorGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+_cursorGui.DisplayOrder = 2147483647
+_cursorGui.Parent = RunService:IsStudio()
+	and LocalPlayer:FindFirstChild("PlayerGui")
+	or (gethui and gethui())
+	or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+local _cursor = Instance.new("Frame")
+_cursor.Name = "Cursor"
+_cursor.AnchorPoint = Vector2.new(0.5, 0.5)
+_cursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+_cursor.BorderSizePixel = 0
+_cursor.Size = UDim2.fromOffset(9, 1)
+_cursor.Visible = false
+_cursor.ZIndex = 10
+_cursor.Parent = _cursorGui
+
+local _cursorBorderH = Instance.new("Frame")
+_cursorBorderH.AnchorPoint = Vector2.new(0.5, 0.5)
+_cursorBorderH.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+_cursorBorderH.BorderSizePixel = 0
+_cursorBorderH.Position = UDim2.fromScale(0.5, 0.5)
+_cursorBorderH.Size = UDim2.new(1, 2, 1, 2)
+_cursorBorderH.ZIndex = 9
+_cursorBorderH.Parent = _cursor
+
+local _cursorV = Instance.new("Frame")
+_cursorV.AnchorPoint = Vector2.new(0.5, 0.5)
+_cursorV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+_cursorV.BorderSizePixel = 0
+_cursorV.Position = UDim2.fromScale(0.5, 0.5)
+_cursorV.Size = UDim2.fromOffset(1, 9)
+_cursorV.ZIndex = 10
+_cursorV.Parent = _cursor
+
+local _cursorBorderV = Instance.new("Frame")
+_cursorBorderV.AnchorPoint = Vector2.new(0.5, 0.5)
+_cursorBorderV.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+_cursorBorderV.BorderSizePixel = 0
+_cursorBorderV.Position = UDim2.fromScale(0.5, 0.5)
+_cursorBorderV.Size = UDim2.new(1, 2, 1, 2)
+_cursorBorderV.ZIndex = 9
+_cursorBorderV.Parent = _cursorV
+
+local _mouse = LocalPlayer:GetMouse()
+local _cursorBinding = tostring(_cursor)
+local _oldMouseIcon
+
+local function _showCursor(state)
+	if state then
+		_oldMouseIcon = UserInputService.MouseIconEnabled
+		UserInputService.MouseIconEnabled = false
+		RunService:BindToRenderStep(_cursorBinding, Enum.RenderPriority.Last.Value, function()
+			_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
+			_cursor.Visible = true
+		end)
+	else
+		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
+		_cursor.Visible = false
+		if _oldMouseIcon ~= nil then
+			UserInputService.MouseIconEnabled = _oldMouseIcon
+		end
+	end
+end
+
+
+
 local function Tween(instance, tweeninfo, propertytable)
 	return TweenService:Create(instance, tweeninfo, propertytable)
 end
@@ -1504,45 +1576,46 @@ function MacLib:Window(Settings)
 			elementsUIPadding.PaddingBottom = UDim.new(0, 10)
 			elementsUIPadding.Parent = elements1
 
-			local elementsScrolling = Instance.new("ScrollingFrame")
-			elementsScrolling.Name = "ElementsScrolling"
-			elementsScrolling.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			elementsScrolling.BottomImage = ""
-			elementsScrolling.CanvasSize = UDim2.new()
-			elementsScrolling.ScrollBarImageTransparency = 0.5
-			elementsScrolling.ScrollBarThickness = 1
-			elementsScrolling.TopImage = ""
-			elementsScrolling.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-			elementsScrolling.BackgroundTransparency = 1
-			elementsScrolling.BorderColor3 = Color3.fromRGB(0, 0, 0)
-			elementsScrolling.BorderSizePixel = 0
-			elementsScrolling.Size = UDim2.fromScale(1, 1)
-			elementsScrolling.ClipsDescendants = false
+			local contentRow = Instance.new("Frame")
+			contentRow.Name = "ContentRow"
+			contentRow.BackgroundTransparency = 1
+			contentRow.BorderSizePixel = 0
+			contentRow.Size = UDim2.fromScale(1, 1)
+			contentRow.ClipsDescendants = true
 
-			local elementsScrollingUIPadding = Instance.new("UIPadding")
-			elementsScrollingUIPadding.Name = "ElementsScrollingUIPadding"
-			elementsScrollingUIPadding.PaddingBottom = UDim.new(0, 5)
-			elementsScrollingUIPadding.PaddingLeft = UDim.new(0, 11)
-			elementsScrollingUIPadding.PaddingRight = UDim.new(0, 3)
-			elementsScrollingUIPadding.PaddingTop = UDim.new(0, 5)
-			elementsScrollingUIPadding.Parent = elementsScrolling
+			local contentRowLayout = Instance.new("UIListLayout")
+			contentRowLayout.FillDirection = Enum.FillDirection.Horizontal
+			contentRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			contentRowLayout.Padding = UDim.new(0, 0)
+			contentRowLayout.Parent = contentRow
 
-			local elementsScrollingUIListLayout = Instance.new("UIListLayout")
-			elementsScrollingUIListLayout.Name = "ElementsScrollingUIListLayout"
-			elementsScrollingUIListLayout.Padding = UDim.new(0, 15)
-			elementsScrollingUIListLayout.FillDirection = Enum.FillDirection.Horizontal
-			elementsScrollingUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-			elementsScrollingUIListLayout.Parent = elementsScrolling
+			local contentRowPad = Instance.new("UIPadding")
+			contentRowPad.PaddingLeft = UDim.new(0, 11)
+			contentRowPad.PaddingRight = UDim.new(0, 8)
+			contentRowPad.PaddingTop = UDim.new(0, 5)
+			contentRowPad.PaddingBottom = UDim.new(0, 5)
+			contentRowPad.Parent = contentRow
+
+			local leftScroll = Instance.new("ScrollingFrame")
+			leftScroll.Name = "LeftScroll"
+			leftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			leftScroll.CanvasSize = UDim2.new()
+			leftScroll.ScrollBarThickness = 2
+			leftScroll.ScrollBarImageTransparency = 0.7
+			leftScroll.BottomImage = ""
+			leftScroll.TopImage = ""
+			leftScroll.BackgroundTransparency = 1
+			leftScroll.BorderSizePixel = 0
+			leftScroll.Size = UDim2.new(0.5, -8, 1, 0)
+			leftScroll.ClipsDescendants = true
+			leftScroll.Parent = contentRow
 
 			local left = Instance.new("Frame")
 			left.Name = "Left"
 			left.AutomaticSize = Enum.AutomaticSize.Y
-			left.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 			left.BackgroundTransparency = 1
-			left.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			left.BorderSizePixel = 0
-			left.Position = UDim2.fromScale(0.512, 0)
-			left.Size = UDim2.new(0.5, -10, 0, 0)
+			left.Size = UDim2.fromScale(1, 0)
 
 			local leftUIListLayout = Instance.new("UIListLayout")
 			leftUIListLayout.Name = "LeftUIListLayout"
@@ -1550,18 +1623,29 @@ function MacLib:Window(Settings)
 			leftUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 			leftUIListLayout.Parent = left
 
-			left.Parent = elementsScrolling
+			left.Parent = leftScroll
+
+			local rightScroll = Instance.new("ScrollingFrame")
+			rightScroll.Name = "RightScroll"
+			rightScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			rightScroll.CanvasSize = UDim2.new()
+			rightScroll.ScrollBarThickness = 2
+			rightScroll.ScrollBarImageTransparency = 0.7
+			rightScroll.BottomImage = ""
+			rightScroll.TopImage = ""
+			rightScroll.BackgroundTransparency = 1
+			rightScroll.BorderSizePixel = 0
+			rightScroll.LayoutOrder = 1
+			rightScroll.Size = UDim2.new(0.5, -8, 1, 0)
+			rightScroll.ClipsDescendants = true
+			rightScroll.Parent = contentRow
 
 			local right = Instance.new("Frame")
 			right.Name = "Right"
 			right.AutomaticSize = Enum.AutomaticSize.Y
-			right.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 			right.BackgroundTransparency = 1
-			right.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			right.BorderSizePixel = 0
-			right.LayoutOrder = 1
-			right.Position = UDim2.fromScale(0.512, 0)
-			right.Size = UDim2.new(0.5, -10, 0, 0)
+			right.Size = UDim2.fromScale(1, 0)
 
 			local rightUIListLayout = Instance.new("UIListLayout")
 			rightUIListLayout.Name = "RightUIListLayout"
@@ -1569,9 +1653,9 @@ function MacLib:Window(Settings)
 			rightUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 			rightUIListLayout.Parent = right
 
-			right.Parent = elementsScrolling
+			right.Parent = rightScroll
 
-			elementsScrolling.Parent = elements1
+			contentRow.Parent = elements1
 
 			function TabFunctions:Section(Settings)
 				local SectionFunctions = {}
@@ -1612,22 +1696,19 @@ function MacLib:Window(Settings)
 				sectionUIPadding.PaddingTop = UDim.new(0, 22)
 				sectionUIPadding.Parent = section
 
-				-- Optional icon + name header
+				-- Obsidian-style section header
 				if Settings.Name or Settings.Image then
-					local headerRow = Instance.new("Frame")
-					headerRow.Name = "SectionHeader"
-					headerRow.BackgroundTransparency = 1
-					headerRow.BorderSizePixel = 0
-					headerRow.Size = UDim2.new(1, 0, 0, 18)
-					headerRow.LayoutOrder = -1
-					headerRow.Parent = section
+					local headerH = 34
 
-					local headerList = Instance.new("UIListLayout")
-					headerList.FillDirection = Enum.FillDirection.Horizontal
-					headerList.VerticalAlignment = Enum.VerticalAlignment.Center
-					headerList.Padding = UDim.new(0, 6)
-					headerList.SortOrder = Enum.SortOrder.LayoutOrder
-					headerList.Parent = headerRow
+					local headerStrip = Instance.new("Frame")
+					headerStrip.Name = "SectionHeader"
+					headerStrip.BackgroundTransparency = 1
+					headerStrip.BorderSizePixel = 0
+					headerStrip.Size = UDim2.new(1, 0, 0, headerH)
+					headerStrip.LayoutOrder = -2
+					headerStrip.Parent = section
+
+					local xOff = 10
 
 					if Settings.Image then
 						local _icon = resolveIcon(Settings.Image)
@@ -1637,12 +1718,17 @@ function MacLib:Window(Settings)
 							iconImg.Image = _icon.Url
 							iconImg.ImageRectOffset = _icon.ImageRectOffset
 							iconImg.ImageRectSize = _icon.ImageRectSize
-							iconImg.ImageTransparency = 0.5
+							iconImg.ImageColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+							iconImg.ImageTransparency = 0
 							iconImg.BackgroundTransparency = 1
 							iconImg.BorderSizePixel = 0
-							iconImg.Size = UDim2.fromOffset(14, 14)
-							iconImg.LayoutOrder = 0
-							iconImg.Parent = headerRow
+							iconImg.Size = UDim2.fromOffset(16, 16)
+							iconImg.Position = UDim2.new(0, xOff, 0.5, -8)
+							iconImg.Parent = headerStrip
+							if MacLib._accentElements then
+								table.insert(MacLib._accentElements, { inst=iconImg, prop="ImageColor3" })
+							end
+							xOff = xOff + 22
 						end
 					end
 
@@ -1653,20 +1739,21 @@ function MacLib:Window(Settings)
 						headerLbl.Text = Settings.Name
 						headerLbl.RichText = true
 						headerLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-						headerLbl.TextSize = 12
-						headerLbl.TextTransparency = 0.45
+						headerLbl.TextSize = 13
+						headerLbl.TextTransparency = 0.2
 						headerLbl.TextXAlignment = Enum.TextXAlignment.Left
-						headerLbl.AutomaticSize = Enum.AutomaticSize.XY
+						headerLbl.TextYAlignment = Enum.TextYAlignment.Center
 						headerLbl.BackgroundTransparency = 1
 						headerLbl.BorderSizePixel = 0
-						headerLbl.LayoutOrder = 1
-						headerLbl.Parent = headerRow
+						headerLbl.Position = UDim2.new(0, xOff, 0, 0)
+						headerLbl.Size = UDim2.new(1, -xOff - 10, 1, 0)
+						headerLbl.Parent = headerStrip
 					end
 
-					-- divider under header
 					local divLine = Instance.new("Frame")
+					divLine.Name = "SectionDivider"
 					divLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					divLine.BackgroundTransparency = 0.92
+					divLine.BackgroundTransparency = 0.88
 					divLine.BorderSizePixel = 0
 					divLine.Size = UDim2.new(1, 0, 0, 1)
 					divLine.LayoutOrder = -1
@@ -2025,6 +2112,11 @@ function MacLib:Window(Settings)
 					sliderHead.Parent = sliderBar
 
 					sliderBar.Parent = sliderElements
+
+					if MacLib._accentElements then
+						table.insert(MacLib._accentElements, { inst=sliderBar,  prop="ImageColor3" })
+						table.insert(MacLib._accentElements, { inst=sliderHead, prop="ImageColor3" })
+					end
 
 					local sliderElementsUIPadding = Instance.new("UIPadding")
 					sliderElementsUIPadding.Name = "SliderElementsUIPadding"
@@ -2617,19 +2709,38 @@ function MacLib:Window(Settings)
 					dropdownFrame.ClipsDescendants = true
 					dropdownFrame.Size = UDim2.fromScale(1, 1)
 					dropdownFrame.Visible = false
-					dropdownFrame.AutomaticSize = Enum.AutomaticSize.Y
+					dropdownFrame.AutomaticSize = Enum.AutomaticSize.None
 
 					local dropdownFrameUIPadding = Instance.new("UIPadding")
 					dropdownFrameUIPadding.Name = "DropdownFrameUIPadding"
 					dropdownFrameUIPadding.PaddingTop = UDim.new(0, 38)
-					dropdownFrameUIPadding.PaddingBottom = UDim.new(0, 10)
+					dropdownFrameUIPadding.PaddingBottom = UDim.new(0, 0)
 					dropdownFrameUIPadding.Parent = dropdownFrame
+
+					-- scrollable options list
+					local dropdownScroll = Instance.new("ScrollingFrame")
+					dropdownScroll.Name = "DropdownScroll"
+					dropdownScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+					dropdownScroll.CanvasSize = UDim2.new()
+					dropdownScroll.ScrollBarThickness = 2
+					dropdownScroll.ScrollBarImageTransparency = 0.6
+					dropdownScroll.BottomImage = ""
+					dropdownScroll.TopImage = ""
+					dropdownScroll.BackgroundTransparency = 1
+					dropdownScroll.BorderSizePixel = 0
+					dropdownScroll.Size = UDim2.new(1, 0, 1, 0)
+					dropdownScroll.Parent = dropdownFrame
 
 					local dropdownFrameUIListLayout = Instance.new("UIListLayout")
 					dropdownFrameUIListLayout.Name = "DropdownFrameUIListLayout"
 					dropdownFrameUIListLayout.Padding = UDim.new(0, 5)
 					dropdownFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-					dropdownFrameUIListLayout.Parent = dropdownFrame
+					dropdownFrameUIListLayout.Parent = dropdownScroll
+
+					local dropdownScrollPad = Instance.new("UIPadding")
+					dropdownScrollPad.PaddingBottom = UDim.new(0, 8)
+					dropdownScrollPad.PaddingTop = UDim.new(0, 4)
+					dropdownScrollPad.Parent = dropdownScroll
 
 					local search = Instance.new("Frame")
 					search.Name = "Search"
@@ -2684,21 +2795,19 @@ function MacLib:Window(Settings)
 					searchBox.BorderSizePixel = 0
 					searchBox.Size = UDim2.fromScale(1, 1)
 
+					local MAX_DROPDOWN_H = 200
 					local function CalculateDropdownSize()
 						local totalHeight = 0
 						local visibleChildrenCount = 0
-						local padding = dropdownFrameUIPadding.PaddingTop.Offset + dropdownFrameUIPadding.PaddingBottom.Offset
-
-						for _, v in pairs(dropdownFrame:GetChildren()) do
+						for _, v in pairs(dropdownScroll:GetChildren()) do
 							if not v:IsA("UIComponent") and v.Visible then
 								totalHeight += v.AbsoluteSize.Y
 								visibleChildrenCount += 1
 							end
 						end
-
-						local spacing = dropdownFrameUIListLayout.Padding.Offset * (visibleChildrenCount - 1)
-
-						return totalHeight + spacing + padding
+						local spacing = dropdownFrameUIListLayout.Padding.Offset * math.max(0, visibleChildrenCount - 1)
+						local optH = math.min(totalHeight + spacing + 12, MAX_DROPDOWN_H)
+						return 38 + optH + (DropdownFunctions.Settings.Search and 34 or 0)
 					end
 
 					local function findOption()
@@ -2903,7 +3012,7 @@ function MacLib:Window(Settings)
 						checkmark.Size = UDim2.fromOffset(-10, 0)
 						checkmark.Parent = option
 
-						option.Parent = dropdownFrame
+						option.Parent = dropdownScroll
 
 						dropdownFrame.Parent = dropdown
 						OptionObjs[v] = {
@@ -5340,6 +5449,7 @@ function MacLib:Window(Settings)
 	function WindowFunctions:SetState(State)
 		windowState = State
 		base.Visible = State
+		_showCursor(State)
 	end
 
 	function WindowFunctions:GetState()
@@ -5352,6 +5462,8 @@ function MacLib:Window(Settings)
 		if onUnloadCallback then
 			onUnloadCallback()  
 		end
+		_showCursor(false)
+		_cursorGui:Destroy()
 		macLib:Destroy()
 		unloaded = true
 	end
