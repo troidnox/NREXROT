@@ -8,7 +8,6 @@ local MacLib = {
 	_fontRegistry  = {},
 	_elementList   = {},
 	_playerDrops   = {},
-	_keybindReg    = {},   -- all registered keybinds for the floating panel
 	_dpi           = 1,
 	_minSize       = Vector2.new(600, 400),
 	Scheme = {
@@ -270,187 +269,6 @@ end
 -- ============================================================
 -- FEATURE: Floating Keybind Menu (Obsidian style)
 -- ============================================================
-local _keybindMenu = nil
-
-function MacLib:CreateKeybindMenu()
-	if _keybindMenu then return _keybindMenu end
-
-	local parent = (gethui and gethui())
-		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
-
-	local frame = Instance.new("Frame")
-	frame.Name = "KeybindsMenu"
-	frame.AutomaticSize = Enum.AutomaticSize.Y
-	frame.BackgroundColor3 = MacLib.Scheme.MainColor
-	frame.BorderSizePixel = 0
-	frame.Position = UDim2.fromOffset(6, 6)
-	frame.Size = UDim2.fromOffset(220, 0)
-	frame.Visible = false
-	frame.ZIndex = 100
-	frame.ClipsDescendants = true
-	frame.Parent = parent
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = frame
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = MacLib.Scheme.OutlineColor
-	stroke.Transparency = 0
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = frame
-
-	-- title bar
-	local titleBar = Instance.new("Frame")
-	titleBar.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
-	titleBar.BackgroundTransparency = 0.85
-	titleBar.BorderSizePixel = 0
-	titleBar.Size = UDim2.new(1, 0, 0, 32)
-	titleBar.ZIndex = 101
-	titleBar.Parent = frame
-
-	local titleCorner = Instance.new("UICorner")
-	titleCorner.CornerRadius = UDim.new(0, 8)
-	titleCorner.Parent = titleBar
-
-	local titleLbl = Instance.new("TextLabel")
-	titleLbl.BackgroundTransparency = 1
-	titleLbl.Size = UDim2.fromScale(1, 1)
-	titleLbl.Text = "Keybinds"
-	titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleLbl.TextSize = 13
-	titleLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
-	titleLbl.ZIndex = 102
-	titleLbl.Parent = titleBar
-
-	local titlePad = Instance.new("UIPadding")
-	titlePad.PaddingLeft = UDim.new(0, 12)
-	titlePad.Parent = titleBar
-
-	-- content list
-	local container = Instance.new("Frame")
-	container.BackgroundTransparency = 1
-	container.BorderSizePixel = 0
-	container.Position = UDim2.fromOffset(0, 32)
-	container.AutomaticSize = Enum.AutomaticSize.Y
-	container.Size = UDim2.new(1, 0, 0, 0)
-	container.ZIndex = 101
-	container.Parent = frame
-
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 0)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = container
-
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.PaddingBottom = UDim.new(0, 8)
-	pad.PaddingTop = UDim.new(0, 4)
-	pad.Parent = container
-
-	-- draggable
-	local _drag, _dStart, _dPos = false, nil, nil
-	titleBar.InputBegan:Connect(function(inp)
-		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-		_drag = true; _dStart = inp.Position; _dPos = frame.Position
-		inp.Changed:Connect(function()
-			if inp.UserInputState == Enum.UserInputState.End then _drag = false end
-		end)
-	end)
-	UserInputService.InputChanged:Connect(function(inp)
-		if not _drag or inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-		local d = inp.Position - _dStart
-		frame.Position = UDim2.fromOffset(
-			math.clamp(_dPos.X.Offset + d.X, 0, workspace.CurrentCamera.ViewportSize.X - frame.AbsoluteSize.X),
-			math.clamp(_dPos.Y.Offset + d.Y, 0, workspace.CurrentCamera.ViewportSize.Y - frame.AbsoluteSize.Y)
-		)
-	end)
-
-	-- populate entries
-	local function addEntry(entry)
-		local row = Instance.new("Frame")
-		row.BackgroundTransparency = 1
-		row.BorderSizePixel = 0
-		row.Size = UDim2.new(1, 0, 0, 22)
-		row.ZIndex = 102
-		row.Parent = container
-
-		local rList = Instance.new("UIListLayout")
-		rList.FillDirection = Enum.FillDirection.Horizontal
-		rList.VerticalAlignment = Enum.VerticalAlignment.Center
-		rList.Padding = UDim.new(0, 6)
-		rList.Parent = row
-
-		-- key badge
-		local badge = Instance.new("TextLabel")
-		badge.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-		badge.BackgroundTransparency = 0
-		badge.BorderSizePixel = 0
-		badge.Size = UDim2.fromOffset(28, 16)
-		badge.TextColor3 = Color3.fromRGB(255, 255, 255)
-		badge.TextSize = 11
-		badge.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
-		badge.ZIndex = 103
-		badge.Parent = row
-
-		local badgeCorner = Instance.new("UICorner")
-		badgeCorner.CornerRadius = UDim.new(0, 4)
-		badgeCorner.Parent = badge
-
-		local badgeStroke = Instance.new("UIStroke")
-		badgeStroke.Color = Color3.fromRGB(255, 255, 255)
-		badgeStroke.Transparency = 0.85
-		badgeStroke.Parent = badge
-
-		-- name label
-		local nameLbl = Instance.new("TextLabel")
-		nameLbl.BackgroundTransparency = 1
-		nameLbl.AutomaticSize = Enum.AutomaticSize.X
-		nameLbl.Size = UDim2.fromScale(0, 1)
-		nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-		nameLbl.TextTransparency = 0.3
-		nameLbl.TextSize = 12
-		nameLbl.FontFace = Font.new(assets.interFont)
-		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-		nameLbl.ZIndex = 103
-		nameLbl.Parent = row
-
-		entry.badge = badge
-		entry.row = row
-
-		local function refresh()
-			local k = entry.getKey and entry.getKey() or Enum.KeyCode.Unknown
-			if k == Enum.KeyCode.Unknown then
-				badge.Text = "—"
-				badge.TextTransparency = 0.6
-			else
-				badge.Text = k.Name:len() == 1 and k.Name or k.Name:sub(1,3)
-				badge.TextTransparency = 0
-			end
-			nameLbl.Text = (entry.name or "?") .. " (" .. (entry.mode or "Toggle") .. ")"
-		end
-		refresh()
-		entry.refreshBadge = refresh
-	end
-
-	for _, entry in ipairs(MacLib._keybindReg) do
-		addEntry(entry)
-	end
-
-	_keybindMenu = {
-		Frame     = frame,
-		Container = container,
-		addEntry  = addEntry,
-		SetVisible = function(_, v) frame.Visible = v end,
-		Toggle     = function(_) frame.Visible = not frame.Visible end,
-	}
-
-	table.insert(MacLib._accentElements, { inst=titleBar, prop="BackgroundColor3" })
-
-	return _keybindMenu
-end
-
 
 local _activeLoading = nil
 
@@ -1233,27 +1051,44 @@ function MacLib:Window(Settings)
 
 	local informationHolder = Instance.new("Frame")
 	informationHolder.Name = "InformationHolder"
-	informationHolder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	informationHolder.BackgroundTransparency = 1
-	informationHolder.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	informationHolder.BorderSizePixel = 0
 	informationHolder.Size = UDim2.fromScale(1, 1)
 
+	-- Obsidian TitleHolder pattern: horizontal layout with optional icon on the left
+	local informationHolderLayout = Instance.new("UIListLayout")
+	informationHolderLayout.FillDirection = Enum.FillDirection.Horizontal
+	informationHolderLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	informationHolderLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	informationHolderLayout.Padding = UDim.new(0, 8)
+	informationHolderLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	informationHolderLayout.Parent = informationHolder
+
 	local informationHolderUIPadding = Instance.new("UIPadding")
 	informationHolderUIPadding.Name = "InformationHolderUIPadding"
-	informationHolderUIPadding.PaddingBottom = UDim.new(0, 10)
-	informationHolderUIPadding.PaddingLeft = UDim.new(0, 23)
-	informationHolderUIPadding.PaddingRight = UDim.new(0, 22)
-	informationHolderUIPadding.PaddingTop = UDim.new(0, 10)
+	informationHolderUIPadding.PaddingLeft = UDim.new(0, 16)
+	informationHolderUIPadding.PaddingRight = UDim.new(0, 12)
 	informationHolderUIPadding.Parent = informationHolder
+
+	-- Icon on left (if Settings.Image provided) - like Obsidian's WindowIcon
+	if Settings.Image and Settings.Image ~= "" then
+		local windowIcon = Instance.new("ImageLabel")
+		windowIcon.Name = "WindowIcon"
+		windowIcon.BackgroundTransparency = 1
+		windowIcon.BorderSizePixel = 0
+		windowIcon.Size = UDim2.fromOffset(28, 28)
+		windowIcon.Image = Settings.Image
+		windowIcon.LayoutOrder = 0
+		windowIcon.Parent = informationHolder
+	end
 
 	local titleFrame = Instance.new("Frame")
 	titleFrame.Name = "TitleFrame"
-	titleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	titleFrame.BackgroundTransparency = 1
-	titleFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	titleFrame.BorderSizePixel = 0
-	titleFrame.Size = UDim2.fromScale(1, 1)
+	titleFrame.AutomaticSize = Enum.AutomaticSize.X
+	titleFrame.Size = UDim2.new(0, 0, 1, 0)
+	titleFrame.LayoutOrder = 1
 
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"
@@ -1271,11 +1106,9 @@ function MacLib:Window(Settings)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextYAlignment = Enum.TextYAlignment.Top
 	title.AutomaticSize = Enum.AutomaticSize.Y
-	title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	title.BackgroundTransparency = 1
-	title.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	title.BorderSizePixel = 0
-	title.Size = UDim2.new(1, -20, 0, 0)
+	title.Size = UDim2.new(1, 0, 0, 0)
 	title.Parent = titleFrame
 
 	local subtitle = Instance.new("TextLabel")
@@ -1286,8 +1119,7 @@ function MacLib:Window(Settings)
 		Enum.FontStyle.Normal
 	)
 	subtitle.RichText = true
-	subtitle.Text = Settings.Subtitle
-	subtitle.RichText = true
+	subtitle.Text = Settings.Subtitle or ""
 	subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 	subtitle.TextSize = 12
 	subtitle.TextTransparency = 0.7
@@ -1295,12 +1127,11 @@ function MacLib:Window(Settings)
 	subtitle.TextXAlignment = Enum.TextXAlignment.Left
 	subtitle.TextYAlignment = Enum.TextYAlignment.Top
 	subtitle.AutomaticSize = Enum.AutomaticSize.Y
-	subtitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	subtitle.BackgroundTransparency = 1
-	subtitle.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	subtitle.BorderSizePixel = 0
 	subtitle.LayoutOrder = 1
-	subtitle.Size = UDim2.new(1, -20, 0, 0)
+	subtitle.Size = UDim2.new(1, 0, 0, 0)
+	subtitle.Visible = Settings.Subtitle and Settings.Subtitle ~= "" or false
 	subtitle.Parent = titleFrame
 
 	local titleFrameUIListLayout = Instance.new("UIListLayout")
@@ -1437,7 +1268,9 @@ function MacLib:Window(Settings)
 	userInfoUIPadding.PaddingRight = UDim.new(0, 10)
 	userInfoUIPadding.Parent = userInfo
 
-	userInfo.Parent = sidebarGroup
+	if Settings.ShowUserInfo then
+		userInfo.Parent = sidebarGroup
+	end
 
 	local sidebarGroupUIPadding = Instance.new("UIPadding")
 	sidebarGroupUIPadding.Name = "SidebarGroupUIPadding"
@@ -1530,13 +1363,13 @@ function MacLib:Window(Settings)
 		initialSidebarWidth = sidebar.AbsoluteSize.X
 	end)
 
-	UserInputService.InputEnded:Connect(function(input)
+	giveSignal(UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			resizingContent = false
 		end
-	end)
+	end))
 
-	UserInputService.InputChanged:Connect(function(input)
+	giveSignal(UserInputService.InputChanged:Connect(function(input)
 		if resizingContent and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local deltaX = UserInputService:GetMouseLocation().X - initialMouseX
 			local newSidebarWidth = initialSidebarWidth + deltaX
@@ -1673,11 +1506,11 @@ function MacLib:Window(Settings)
 		end)
 	end
 
-	UserInputService.InputChanged:Connect(function(input)
+	giveSignal(UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging_ then
 			update(input)
 		end
-	end)
+	end))
 
 	local currentTab = Instance.new("TextLabel")
 	currentTab.Name = "CurrentTab"
@@ -1792,14 +1625,19 @@ function MacLib:Window(Settings)
 			end)
 		end)
 
-		UserInputService.InputChanged:Connect(function(inp)
+		giveSignal(UserInputService.InputChanged:Connect(function(inp)
 			if not _rDrag then return end
 			if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 			local loc = UserInputService:GetMouseLocation()
 			local newW = math.max(MacLib._minSize.X, _rStartW + (loc.X - _rStartX))
 			local newH = math.max(MacLib._minSize.Y, _rStartH + (loc.Y - _rStartY))
 			base.Size = UDim2.fromOffset(newW, newH)
-		end)
+			-- like Obsidian's resize callback: update content frame to fill remaining space
+			local sideW = sidebar.Size.X.Offset > 0
+				and sidebar.Size.X.Offset
+				or math.floor(newW * sidebar.Size.X.Scale)
+			content.Size = UDim2.new(0, newW - sideW, 1, 0)
+		end))
 	end
 
 
@@ -2453,29 +2291,103 @@ function MacLib:Window(Settings)
 
 			function TabFunctions:Section(Settings)
 				local SectionFunctions = {}
+
+				-- Obsidian: transparent outer wrapper (BoxHolder equivalent)
+				local sectionOuter = Instance.new("Frame")
+				sectionOuter.BackgroundTransparency = 1
+				sectionOuter.AutomaticSize = Enum.AutomaticSize.Y
+				sectionOuter.Size = UDim2.fromScale(1, 0)
+				sectionOuter.BorderSizePixel = 0
+				sectionOuter.Parent = Settings.Side == "Left" and left or right
+
+				-- Obsidian: styled card (GroupboxHolder equivalent)
+				local sectionCard = Instance.new("Frame")
+				sectionCard.Name = "Section"
+				sectionCard.BackgroundColor3 = MacLib.Scheme.BackgroundColor
+				sectionCard.AutomaticSize = Enum.AutomaticSize.Y
+				sectionCard.Size = UDim2.fromScale(1, 0)
+				sectionCard.BorderSizePixel = 0
+				sectionCard.Parent = sectionOuter
+
+				local sectionCorner = Instance.new("UICorner")
+				sectionCorner.CornerRadius = UDim.new(0, 4)
+				sectionCorner.Parent = sectionCard
+
+				-- Obsidian LibraryAddOutline: outer stroke (OutlineColor) + shadow stroke (black)
+				local sectionStroke = Instance.new("UIStroke")
+				sectionStroke.Color = MacLib.Scheme.OutlineColor
+				sectionStroke.Thickness = 1
+				sectionStroke.ZIndex = 2
+				sectionStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				sectionStroke.Parent = sectionCard
+
+				local sectionShadow = Instance.new("UIStroke")
+				sectionShadow.Color = Color3.fromRGB(0, 0, 0)
+				sectionShadow.Thickness = 1.5
+				sectionShadow.ZIndex = 1
+				sectionShadow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				sectionShadow.Parent = sectionCard
+
+				local hasHeader = Settings.Name or Settings.Image
+
+				if hasHeader then
+					-- Obsidian: optional icon at (6,6) 22x22 in AccentColor
+					if Settings.Image then
+						local _icon = resolveIcon(Settings.Image)
+						if _icon then
+							local iconImg = Instance.new("ImageLabel")
+							iconImg.Image = _icon.Url
+							iconImg.ImageRectOffset = _icon.ImageRectOffset
+							iconImg.ImageRectSize = _icon.ImageRectSize
+							iconImg.ImageColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+							iconImg.BackgroundTransparency = 1
+							iconImg.BorderSizePixel = 0
+							iconImg.Position = UDim2.fromOffset(6, 6)
+							iconImg.Size = UDim2.fromOffset(22, 22)
+							iconImg.Parent = sectionCard
+							if MacLib._accentElements then
+								table.insert(MacLib._accentElements, { inst = iconImg, prop = "ImageColor3" })
+							end
+						end
+					end
+
+					-- Obsidian: GroupboxLabel — 34px tall, TextSize 15, PaddingLeft 12
+					local titleLbl = Instance.new("TextLabel")
+					titleLbl.BackgroundTransparency = 1
+					titleLbl.BorderSizePixel = 0
+					titleLbl.Position = UDim2.fromOffset(Settings.Image and 24 or 0, 0)
+					titleLbl.Size = UDim2.new(1, 0, 0, 34)
+					titleLbl.Text = Settings.Name or ""
+					titleLbl.TextSize = 15
+					titleLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.Medium)
+					titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+					titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+					titleLbl.RichText = true
+
+					local titlePad = Instance.new("UIPadding")
+					titlePad.PaddingLeft = UDim.new(0, 12)
+					titlePad.PaddingRight = UDim.new(0, 12)
+					titlePad.Parent = titleLbl
+
+					titleLbl.Parent = sectionCard
+
+					-- Obsidian: LibraryMakeLine at Position Y=34, Size (1,0,0,1)
+					local divLine = Instance.new("Frame")
+					divLine.BackgroundColor3 = MacLib.Scheme.OutlineColor
+					divLine.BorderSizePixel = 0
+					divLine.Position = UDim2.fromOffset(0, 34)
+					divLine.Size = UDim2.new(1, 0, 0, 1)
+					divLine.Parent = sectionCard
+				end
+
+				-- Obsidian: GroupboxContainer — at Y=35, UIListLayout pad 8, UIPadding 7 all
 				local section = Instance.new("Frame")
-				section.Name = "Section"
+				section.BackgroundTransparency = 1
 				section.AutomaticSize = Enum.AutomaticSize.Y
-				section.BackgroundColor3 = MacLib.Scheme.MainColor
-				section.BackgroundTransparency = 0
-				section.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				section.BorderSizePixel = 0
-				section.Position = UDim2.fromScale(0, 6.78e-08)
+				section.Position = UDim2.fromOffset(0, hasHeader and 35 or 0)
 				section.Size = UDim2.fromScale(1, 0)
-				section.ClipsDescendants = true
-				section.Parent = Settings.Side == "Left" and left or right
-
-				local sectionUICorner = Instance.new("UICorner")
-				sectionUICorner.Name = "SectionUICorner"
-				sectionUICorner.CornerRadius = UDim.new(0, 8)
-				sectionUICorner.Parent = section
-
-				local sectionUIStroke = Instance.new("UIStroke")
-				sectionUIStroke.Name = "SectionUIStroke"
-				sectionUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-				sectionUIStroke.Color = MacLib.Scheme.OutlineColor
-				sectionUIStroke.Transparency = 0
-				sectionUIStroke.Parent = section
+				section.Parent = sectionCard
 
 				local sectionUIListLayout = Instance.new("UIListLayout")
 				sectionUIListLayout.Name = "SectionUIListLayout"
@@ -2485,76 +2397,11 @@ function MacLib:Window(Settings)
 
 				local sectionUIPadding = Instance.new("UIPadding")
 				sectionUIPadding.Name = "SectionUIPadding"
-				sectionUIPadding.PaddingBottom = UDim.new(0, 14)
-				sectionUIPadding.PaddingLeft = UDim.new(0, 14)
-				sectionUIPadding.PaddingRight = UDim.new(0, 14)
-				sectionUIPadding.PaddingTop = UDim.new(0, 14)
+				sectionUIPadding.PaddingBottom = UDim.new(0, 7)
+				sectionUIPadding.PaddingLeft = UDim.new(0, 7)
+				sectionUIPadding.PaddingRight = UDim.new(0, 7)
+				sectionUIPadding.PaddingTop = UDim.new(0, 7)
 				sectionUIPadding.Parent = section
-
-				-- Obsidian-style section header
-				if Settings.Name or Settings.Image then
-					local headerH = 40
-
-					local headerStrip = Instance.new("Frame")
-					headerStrip.Name = "SectionHeader"
-					headerStrip.BackgroundTransparency = 1
-					headerStrip.BorderSizePixel = 0
-					headerStrip.Size = UDim2.new(1, 0, 0, headerH)
-					headerStrip.LayoutOrder = -2
-					headerStrip.ClipsDescendants = false
-					headerStrip.Parent = section
-
-					local xOff = 12
-
-					if Settings.Image then
-						local _icon = resolveIcon(Settings.Image)
-						if _icon then
-							local iconImg = Instance.new("ImageLabel")
-							iconImg.Name = "SectionIcon"
-							iconImg.Image = _icon.Url
-							iconImg.ImageRectOffset = _icon.ImageRectOffset
-							iconImg.ImageRectSize = _icon.ImageRectSize
-							iconImg.ImageColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
-							iconImg.ImageTransparency = 0
-							iconImg.BackgroundTransparency = 1
-							iconImg.BorderSizePixel = 0
-							iconImg.Size = UDim2.fromOffset(16, 16)
-							iconImg.Position = UDim2.new(0, xOff, 0.5, -8)
-							iconImg.Parent = headerStrip
-							if MacLib._accentElements then
-								table.insert(MacLib._accentElements, { inst=iconImg, prop="ImageColor3" })
-							end
-							xOff = xOff + 24
-						end
-					end
-
-					if Settings.Name then
-						local headerLbl = Instance.new("TextLabel")
-						headerLbl.Name = "SectionName"
-						headerLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
-						headerLbl.Text = Settings.Name
-						headerLbl.RichText = true
-						headerLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-						headerLbl.TextSize = 13
-						headerLbl.TextTransparency = 0.05
-						headerLbl.TextXAlignment = Enum.TextXAlignment.Left
-						headerLbl.TextYAlignment = Enum.TextYAlignment.Center
-						headerLbl.BackgroundTransparency = 1
-						headerLbl.BorderSizePixel = 0
-						headerLbl.Position = UDim2.new(0, xOff, 0, 0)
-						headerLbl.Size = UDim2.new(1, -xOff - 10, 1, 0)
-						headerLbl.Parent = headerStrip
-					end
-
-					local divLine = Instance.new("Frame")
-					divLine.Name = "SectionDivider"
-					divLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					divLine.BackgroundTransparency = 0.9
-					divLine.BorderSizePixel = 0
-					divLine.Size = UDim2.new(1, 0, 0, 1)
-					divLine.LayoutOrder = -1
-					divLine.Parent = section
-				end
 
 
 				function SectionFunctions:Button(Settings, Flag)
@@ -2850,15 +2697,6 @@ function MacLib:Window(Settings)
 
 						updatePicker()
 
-						-- register in global keybind list
-						local _kbEntry = {
-							name    = ToggleFunctions.Settings.Name or "?",
-							mode    = "Toggle",
-							getKey  = function() return boundKey end,
-						}
-						table.insert(MacLib._keybindReg, _kbEntry)
-						if _keybindMenu then _keybindMenu.addEntry(_kbEntry) end
-
 						picker.MouseButton1Click:Connect(function()
 							picking = not picking
 							updatePicker()
@@ -2871,7 +2709,6 @@ function MacLib:Window(Settings)
 									boundKey = inp.KeyCode
 									picking = false
 									updatePicker()
-									if _kbEntry.refreshBadge then _kbEntry.refreshBadge() end
 									if ToggleFunctions.Settings.onBinded then
 										ToggleFunctions.Settings.onBinded(boundKey)
 									end
@@ -3492,11 +3329,6 @@ function MacLib:Window(Settings)
 								KeybindFunctions.Settings.onBinded(binded)
 							end
 
-							-- refresh keybind panel entry if it exists
-							if KeybindFunctions._panelEntry and KeybindFunctions._panelEntry.refreshBadge then
-								KeybindFunctions._panelEntry.refreshBadge()
-							end
-
 							setBadgeIdle()
 						end)
 					end)
@@ -3524,20 +3356,6 @@ function MacLib:Window(Settings)
 							end
 						end
 					end)
-
-					-- Register in keybind panel
-					if MacLib._keybindReg then
-						local entry = {
-							name    = KeybindFunctions.Settings.Name or "",
-							mode    = "Hold",
-							getKey  = function() return binded end,
-						}
-						KeybindFunctions._panelEntry = entry
-						table.insert(MacLib._keybindReg, entry)
-						if _keybindMenu then
-							_keybindMenu.addEntry(entry)
-						end
-					end
 
 					function KeybindFunctions:Bind(Key)
 						binded = Key
@@ -6428,19 +6246,34 @@ function MacLib:Window(Settings)
 		return windowState
 	end
 
+	local _signals = {}
+	local _unloadCbs = {}
+
+	local function giveSignal(conn)
+		if conn and (typeof(conn) == "RBXScriptConnection" or typeof(conn) == "RBXScriptSignal") then
+			table.insert(_signals, conn)
+		end
+		return conn
+	end
+
 	local onUnloadCallback
 
 	function WindowFunctions:Unload()
-		if onUnloadCallback then
-			onUnloadCallback()  
+		-- Obsidian pattern: disconnect every tracked signal in reverse, then fire callbacks
+		for i = #_signals, 1, -1 do
+			local c = table.remove(_signals, i)
+			if c and c.Connected then pcall(c.Disconnect, c) end
+		end
+		for _, cb in ipairs(_unloadCbs) do
+			pcall(cb)
 		end
 		_showCursor(false)
-		macLib:Destroy()
+		if macLib and macLib.Parent then macLib:Destroy() end
 		unloaded = true
 	end
 
 	function WindowFunctions.onUnloaded(callback)
-		onUnloadCallback = callback
+		table.insert(_unloadCbs, callback)
 	end
 
 	local MenuKeybind = Settings.Keybind or Enum.KeyCode.RightControl
@@ -6455,12 +6288,12 @@ function MacLib:Window(Settings)
 		})
 	end
 
-	UserInputService.InputEnded:Connect(function(inp, gpe)
+	giveSignal(UserInputService.InputEnded:Connect(function(inp, gpe)
 		if gpe then return end
 		if inp.KeyCode == MenuKeybind then
 			ToggleMenu()
 		end
-	end)
+	end))
 
 	minimize.MouseButton1Click:Connect(ToggleMenu)
 	exit.MouseButton1Click:Connect(function()
@@ -6852,7 +6685,6 @@ function MacLib:Window(Settings)
 
 	-- Title gradient updater — call Window:SetTitleUpdater(fn) in main script
 	function WindowFunctions:SetTitleUpdater(fn) MacLib._titleUpdater = fn end
-	function WindowFunctions:GetKeybindMenu() return MacLib:CreateKeybindMenu() end
 
 	-- Expose feature APIs on Window
 	function WindowFunctions:SetDPIScale(scale) MacLib:SetDPIScale(scale) end
