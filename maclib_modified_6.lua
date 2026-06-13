@@ -573,8 +573,11 @@ function MacLib:Window(Settings)
 			local info = TweenInfo.new(0.2, Enum.EasingStyle.Sine)
 			for _, entry in ipairs(MacLib._accentElements) do
 				pcall(function()
-					if entry.inst and entry.inst.Parent and entry.prop then
-						TweenService:Create(entry.inst, info, { [entry.prop] = color }):Play()
+					if entry.inst and entry.inst.Parent then
+						if entry.prop then
+							local c = entry.getColor and entry.getColor() or color
+							TweenService:Create(entry.inst, info, { [entry.prop] = c }):Play()
+						end
 					end
 				end)
 			end
@@ -2150,7 +2153,7 @@ function MacLib:Window(Settings)
 				section.Name = "Section"
 				section.AutomaticSize = Enum.AutomaticSize.Y
 				section.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-				section.BackgroundTransparency = 0.98
+				section.BackgroundTransparency = 0.94
 				section.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				section.BorderSizePixel = 0
 				section.Position = UDim2.fromScale(0, 6.78e-08)
@@ -2167,21 +2170,21 @@ function MacLib:Window(Settings)
 				sectionUIStroke.Name = "SectionUIStroke"
 				sectionUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 				sectionUIStroke.Color = Color3.fromRGB(255, 255, 255)
-				sectionUIStroke.Transparency = 0.95
+				sectionUIStroke.Transparency = 0.90
 				sectionUIStroke.Parent = section
 
 				local sectionUIListLayout = Instance.new("UIListLayout")
 				sectionUIListLayout.Name = "SectionUIListLayout"
-				sectionUIListLayout.Padding = UDim.new(0, 10)
+				sectionUIListLayout.Padding = UDim.new(0, 8)
 				sectionUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				sectionUIListLayout.Parent = section
 
 				local sectionUIPadding = Instance.new("UIPadding")
 				sectionUIPadding.Name = "SectionUIPadding"
-				sectionUIPadding.PaddingBottom = UDim.new(0, 20)
-				sectionUIPadding.PaddingLeft = UDim.new(0, 20)
-				sectionUIPadding.PaddingRight = UDim.new(0, 18)
-				sectionUIPadding.PaddingTop = UDim.new(0, 22)
+				sectionUIPadding.PaddingBottom = UDim.new(0, 14)
+				sectionUIPadding.PaddingLeft = UDim.new(0, 14)
+				sectionUIPadding.PaddingRight = UDim.new(0, 14)
+				sectionUIPadding.PaddingTop = UDim.new(0, 14)
 				sectionUIPadding.Parent = section
 
 				-- Obsidian-style section header
@@ -2395,8 +2398,14 @@ function MacLib:Window(Settings)
 					toggle1.Image = assets.toggleBackground
 					toggle1.ImageColor3 = Color3.fromRGB(87, 86, 86)
 
-					-- register for accent updates
-					table.insert(MacLib._accentElements, { inst=toggle1, prop=nil }) -- handled in NewState
+					-- register for accent updates — getColor checks live state
+					table.insert(MacLib._accentElements, {
+						inst = toggle1,
+						prop = "ImageColor3",
+						getColor = function()
+							return togglebool and MacLib.Accent or Color3.fromRGB(87, 86, 86)
+						end
+					})
 					toggle1.AutoButtonColor = false
 					toggle1.AnchorPoint = Vector2.new(1, 0.5)
 					toggle1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2476,6 +2485,95 @@ function MacLib:Window(Settings)
 					end
 
 					toggle1.MouseButton1Click:Connect(Toggle)
+
+					-- ── Inline keybind picker (Obsidian style) ──────────────────
+					if ToggleFunctions.Settings.Keybind then
+						local boundKey = ToggleFunctions.Settings.Keybind
+						local picking = false
+
+						local picker = Instance.new("TextButton")
+						picker.Name = "KeyPicker"
+						picker.Size = UDim2.fromOffset(24, 18)
+						picker.AnchorPoint = Vector2.new(1, 0.5)
+						picker.Position = UDim2.new(1, -48, 0.5, 0)
+						picker.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+						picker.BorderSizePixel = 0
+						picker.TextColor3 = Color3.fromRGB(255, 255, 255)
+						picker.TextSize = 11
+						picker.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
+						picker.AutoButtonColor = false
+						picker.ZIndex = 3
+						picker.Parent = toggle
+
+						local pickerCorner = Instance.new("UICorner")
+						pickerCorner.CornerRadius = UDim.new(0, 4)
+						pickerCorner.Parent = picker
+
+						local pickerStroke = Instance.new("UIStroke")
+						pickerStroke.Color = Color3.fromRGB(255, 255, 255)
+						pickerStroke.Transparency = 0.88
+						pickerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						pickerStroke.Parent = picker
+
+						local function getKeyName(k)
+							if not k or k == Enum.KeyCode.Unknown then return "—" end
+							local n = k.Name
+							if #n == 1 then return n end
+							local shorts = {
+								LeftControl="LCtrl", RightControl="RCtrl",
+								LeftShift="LShft", RightShift="RShft",
+								LeftAlt="LAlt", RightAlt="RAlt",
+								Space="Spc", Return="Ent",
+								BackSpace="BS", Delete="Del",
+								Tab="Tab", CapsLock="Caps",
+								F1="F1",F2="F2",F3="F3",F4="F4",F5="F5",
+								F6="F6",F7="F7",F8="F8",F9="F9",F10="F10",
+							}
+							return shorts[n] or n:sub(1,4)
+						end
+
+						local function updatePicker()
+							if picking then
+								picker.Text = "..."
+								picker.BackgroundColor3 = Color3.fromRGB(138, 79, 255)
+								picker.BackgroundTransparency = 0.3
+							else
+								picker.Text = getKeyName(boundKey)
+								picker.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+								picker.BackgroundTransparency = 0
+							end
+						end
+
+						updatePicker()
+
+						picker.MouseButton1Click:Connect(function()
+							picking = not picking
+							updatePicker()
+						end)
+
+						UserInputService.InputBegan:Connect(function(inp, gpe)
+							if gpe then return end
+							if picking then
+								if inp.UserInputType == Enum.UserInputType.Keyboard then
+									boundKey = inp.KeyCode
+									picking = false
+									updatePicker()
+									if ToggleFunctions.Settings.onBinded then
+										ToggleFunctions.Settings.onBinded(boundKey)
+									end
+								end
+								return
+							end
+							-- fire toggle when key pressed (not Unknown)
+							if boundKey ~= Enum.KeyCode.Unknown and inp.UserInputType == Enum.UserInputType.Keyboard and inp.KeyCode == boundKey then
+								Toggle()
+							end
+						end)
+
+						-- widen toggleName to leave room for picker
+						toggleName.Size = UDim2.new(1, -80, 0, 0)
+					end
+					-- ────────────────────────────────────────────────────────────
 
 					function ToggleFunctions:Toggle()
 						Toggle()
@@ -3076,6 +3174,8 @@ function MacLib:Window(Settings)
 							end)
 						else
 							if not reset and (inp.KeyCode == binded or inp.UserInputType == binded) then
+								-- Never fire if bound to Unknown
+								if binded == Enum.KeyCode.Unknown then return end
 								if KeybindFunctions.Settings.Callback then
 									KeybindFunctions.Settings.Callback(binded)
 								end
