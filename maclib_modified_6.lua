@@ -3,7 +3,14 @@ local MacLib = {
 	Folder = "Maclib", 
 	GetService = function(service)
 		return cloneref and cloneref(game:GetService(service)) or game:GetService(service)
-	end
+	end,
+	-- Feature state
+	_scales        = {},   -- all UIScale instances (for DPI)
+	_fontRegistry  = {},   -- {instance=TextLabel/Button, prop="FontFace"}
+	_elementList   = {},   -- all created elements for global search
+	_playerDrops   = {},   -- dropdowns with SpecialType="Player"
+	_dpi           = 1,
+	_minSize       = Vector2.new(600, 400),
 }
 
 --// Services
@@ -114,9 +121,444 @@ local function _showCursor(state)
 end
 
 
+-- ============================================================
+-- FEATURE: DPI Scaling
+-- ============================================================
+function MacLib:SetDPIScale(scale)
+	scale = math.clamp(scale, 0.5, 3)
+	MacLib._dpi = scale
+	for _, uiscale in ipairs(MacLib._scales) do
+		if uiscale and uiscale.Parent then
+			uiscale.Scale = scale
+		end
+	end
+end
+
+-- ============================================================
+-- FEATURE: Font Swapping
+-- ============================================================
+function MacLib:SetFont(fontFace)
+	if typeof(fontFace) == "EnumItem" then
+		fontFace = Font.fromEnum(fontFace)
+	end
+	MacLib._currentFont = fontFace
+	for _, entry in ipairs(MacLib._fontRegistry) do
+		if entry.inst and entry.inst.Parent then
+			entry.inst.FontFace = fontFace
+		end
+	end
+end
+
+local function _regFont(inst)
+	if inst and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then
+		table.insert(MacLib._fontRegistry, { inst = inst })
+	end
+end
+
+-- ============================================================
+-- FEATURE: Cursor icon + size
+-- ============================================================
+local _cursorCustomImg
+
+function MacLib:SetCursorIcon(name)
+	if not _cursorCustomImg then return end
+	if not name or name == "" then
+		_cursorCustomImg.Visible = false
+		return
+	end
+	local icon = resolveIcon(name)
+	if icon then
+		_cursorCustomImg.Image = icon.Url
+		_cursorCustomImg.ImageRectOffset = icon.ImageRectOffset
+		_cursorCustomImg.ImageRectSize = icon.ImageRectSize
+		_cursorCustomImg.Visible = true
+	end
+end
+
+function MacLib:SetCursorIconSize(udim2)
+	if _cursorCustomImg then _cursorCustomImg.Size = udim2 end
+end
+
+function MacLib:ResetCursorIcon()
+	if _cursorCustomImg then
+		_cursorCustomImg.Visible = false
+		_cursorCustomImg.Size = UDim2.fromOffset(20, 20)
+	end
+end
+
+-- ============================================================
+-- FEATURE: Draggable Floating Labels
+-- ============================================================
+function MacLib:AddFloatingLabel(text)
+	local macGui = (gethui and gethui())
+		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+	local holder = Instance.new("Frame")
+	holder.Name = "FloatingLabel"
+	holder.AutomaticSize = Enum.AutomaticSize.XY
+	holder.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	holder.BackgroundTransparency = 0.1
+	holder.BorderSizePixel = 0
+	holder.Position = UDim2.fromOffset(6, 6)
+	holder.ZIndex = 10
+	holder.Parent = macGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = holder
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Transparency = 0.9
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = holder
+
+	local lbl = Instance.new("TextLabel")
+	lbl.BackgroundTransparency = 1
+	lbl.AutomaticSize = Enum.AutomaticSize.XY
+	lbl.Text = text or ""
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.TextSize = 14
+	lbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
+	lbl.RichText = true
+	lbl.Parent = holder
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft  = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
+	pad.PaddingTop   = UDim.new(0, 6)
+	pad.PaddingBottom = UDim.new(0, 6)
+	pad.Parent = holder
+
+	-- make draggable
+	local _drag, _dragStart, _startPos = false, nil, nil
+	holder.InputBegan:Connect(function(inp)
+		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 and inp.UserInputType ~= Enum.UserInputType.Touch then return end
+		_drag = true
+		_dragStart = inp.Position
+		_startPos = holder.Position
+		inp.Changed:Connect(function()
+			if inp.UserInputState == Enum.UserInputState.End then _drag = false end
+		end)
+	end)
+	UserInputService.InputChanged:Connect(function(inp)
+		if not _drag then return end
+		if inp.UserInputType ~= Enum.UserInputType.MouseMovement and inp.UserInputType ~= Enum.UserInputType.Touch then return end
+		local delta = inp.Position - _dragStart
+		holder.Position = UDim2.fromOffset(
+			math.clamp(_startPos.X.Offset + delta.X, 0, workspace.CurrentCamera.ViewportSize.X - holder.AbsoluteSize.X),
+			math.clamp(_startPos.Y.Offset + delta.Y, 0, workspace.CurrentCamera.ViewportSize.Y - holder.AbsoluteSize.Y)
+		)
+	end)
+
+	local tbl = {}
+	function tbl:SetText(t) lbl.Text = t end
+	function tbl:SetVisible(v) holder.Visible = v end
+	function tbl:Destroy() holder:Destroy() end
+	tbl.Label = holder
+	return tbl
+end
+
+-- ============================================================
+-- FEATURE: Loading Screen
+-- ============================================================
+local _activeLoading = nil
+
+function MacLib:CreateLoading(info)
+	if _activeLoading then return _activeLoading end
+
+	info = info or {}
+	local title   = info.Title or "Loading"
+	local subtitle = info.Subtitle or ""
+	local icon    = info.Icon    -- lucide name
+	local width   = info.Width   or 420
+	local height  = info.Height  or 180
+
+	local parent = (gethui and gethui())
+		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "MacLibLoading"
+	sg.ResetOnSpawn = false
+	sg.DisplayOrder = 2147483646
+	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	sg.Parent = parent
+
+	local base = Instance.new("Frame")
+	base.AnchorPoint = Vector2.new(0.5, 0.5)
+	base.Position = UDim2.fromScale(0.5, 0.5)
+	base.Size = UDim2.fromOffset(width, height)
+	base.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+	base.BorderSizePixel = 0
+	base.Parent = sg
+
+	local baseCorner = Instance.new("UICorner")
+	baseCorner.CornerRadius = UDim.new(0, 10)
+	baseCorner.Parent = base
+
+	local baseStroke = Instance.new("UIStroke")
+	baseStroke.Color = Color3.fromRGB(255, 255, 255)
+	baseStroke.Transparency = 0.92
+	baseStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	baseStroke.Parent = base
+
+	-- make draggable
+	local _drag, _dragStart, _startPos = false, nil, nil
+	base.InputBegan:Connect(function(inp)
+		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		_drag = true; _dragStart = inp.Position; _startPos = base.Position
+		inp.Changed:Connect(function()
+			if inp.UserInputState == Enum.UserInputState.End then _drag = false end
+		end)
+	end)
+	UserInputService.InputChanged:Connect(function(inp)
+		if not _drag or inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+		local d = inp.Position - _dragStart
+		base.Position = UDim2.new(0.5, d.X, 0.5, d.Y)
+	end)
+
+	local content = Instance.new("Frame")
+	content.BackgroundTransparency = 1
+	content.Size = UDim2.fromScale(1, 1)
+	content.Parent = base
+
+	local cpad = Instance.new("UIPadding")
+	cpad.PaddingLeft = UDim.new(0, 28)
+	cpad.PaddingRight = UDim.new(0, 28)
+	cpad.PaddingTop = UDim.new(0, 22)
+	cpad.PaddingBottom = UDim.new(0, 20)
+	cpad.Parent = content
+
+	local clist = Instance.new("UIListLayout")
+	clist.Padding = UDim.new(0, 6)
+	clist.SortOrder = Enum.SortOrder.LayoutOrder
+	clist.Parent = content
+
+	-- icon + title row
+	local titleRow = Instance.new("Frame")
+	titleRow.BackgroundTransparency = 1
+	titleRow.Size = UDim2.new(1, 0, 0, 28)
+	titleRow.LayoutOrder = 0
+	titleRow.Parent = content
+
+	local titleList = Instance.new("UIListLayout")
+	titleList.FillDirection = Enum.FillDirection.Horizontal
+	titleList.VerticalAlignment = Enum.VerticalAlignment.Center
+	titleList.Padding = UDim.new(0, 8)
+	titleList.Parent = titleRow
+
+	if icon then
+		local ic = resolveIcon(icon)
+		if ic then
+			local iconImg = Instance.new("ImageLabel")
+			iconImg.Image = ic.Url
+			iconImg.ImageRectOffset = ic.ImageRectOffset
+			iconImg.ImageRectSize = ic.ImageRectSize
+			iconImg.ImageColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+			iconImg.BackgroundTransparency = 1
+			iconImg.Size = UDim2.fromOffset(22, 22)
+			iconImg.Parent = titleRow
+		end
+	end
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.AutomaticSize = Enum.AutomaticSize.XY
+	titleLbl.Text = title
+	titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLbl.TextSize = 16
+	titleLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = titleRow
+
+	-- subtitle
+	local subLbl = Instance.new("TextLabel")
+	subLbl.BackgroundTransparency = 1
+	subLbl.Size = UDim2.new(1, 0, 0, 0)
+	subLbl.AutomaticSize = Enum.AutomaticSize.Y
+	subLbl.Text = subtitle
+	subLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	subLbl.TextTransparency = 0.55
+	subLbl.TextSize = 13
+	subLbl.FontFace = Font.new(assets.interFont)
+	subLbl.TextXAlignment = Enum.TextXAlignment.Left
+	subLbl.TextWrapped = true
+	subLbl.LayoutOrder = 1
+	subLbl.Parent = content
+
+	-- progress bar
+	local barBg = Instance.new("Frame")
+	barBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	barBg.BackgroundTransparency = 0.9
+	barBg.BorderSizePixel = 0
+	barBg.Size = UDim2.new(1, 0, 0, 4)
+	barBg.LayoutOrder = 2
+	barBg.Parent = content
+
+	local barCorner1 = Instance.new("UICorner")
+	barCorner1.CornerRadius = UDim.new(1, 0)
+	barCorner1.Parent = barBg
+
+	local barFill = Instance.new("Frame")
+	barFill.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+	barFill.BorderSizePixel = 0
+	barFill.Size = UDim2.fromScale(0, 1)
+	barFill.Parent = barBg
+
+	local barCorner2 = Instance.new("UICorner")
+	barCorner2.CornerRadius = UDim.new(1, 0)
+	barCorner2.Parent = barFill
+
+	-- step label
+	local stepLbl = Instance.new("TextLabel")
+	stepLbl.BackgroundTransparency = 1
+	stepLbl.Size = UDim2.new(1, 0, 0, 14)
+	stepLbl.Text = ""
+	stepLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	stepLbl.TextTransparency = 0.6
+	stepLbl.TextSize = 12
+	stepLbl.FontFace = Font.new(assets.interFont)
+	stepLbl.TextXAlignment = Enum.TextXAlignment.Left
+	stepLbl.LayoutOrder = 3
+	stepLbl.Parent = content
+
+	local Loading = {}
+	Loading.ScreenGui = sg
+
+	function Loading:SetTitle(t) titleLbl.Text = t end
+	function Loading:SetSubtitle(t) subLbl.Text = t end
+
+	function Loading:SetStep(current, total, label)
+		local pct = total and total > 0 and (current / total) or 0
+		Tween(barFill, TweenInfo.new(0.2, Enum.EasingStyle.Sine), { Size = UDim2.fromScale(pct, 1) }):Play()
+		if label then stepLbl.Text = label end
+	end
+
+	function Loading:Finish(callback)
+		task.delay(0.3, function()
+			Tween(base, TweenInfo.new(0.4, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
+			task.delay(0.4, function()
+				sg:Destroy()
+				_activeLoading = nil
+				if callback then callback() end
+			end)
+		end)
+	end
+
+	_activeLoading = Loading
+	return Loading
+end
+
+-- ============================================================
+-- FEATURE: Tooltip system
+-- ============================================================
+local _tooltipLabel = nil
+local _tooltipMouse = nil
+local _tooltipConn  = nil
+
+local function _initTooltip(macGui)
+	if _tooltipLabel then return end
+	_tooltipLabel = Instance.new("TextLabel")
+	_tooltipLabel.Name = "Tooltip"
+	_tooltipLabel.AutomaticSize = Enum.AutomaticSize.XY
+	_tooltipLabel.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	_tooltipLabel.BackgroundTransparency = 0.05
+	_tooltipLabel.BorderSizePixel = 0
+	_tooltipLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	_tooltipLabel.TextSize = 13
+	_tooltipLabel.FontFace = Font.new(assets.interFont)
+	_tooltipLabel.TextWrapped = true
+	_tooltipLabel.Visible = false
+	_tooltipLabel.ZIndex = 11001
+	_tooltipLabel.Parent = macGui
+
+	local tp = Instance.new("UIPadding")
+	tp.PaddingLeft   = UDim.new(0, 8)
+	tp.PaddingRight  = UDim.new(0, 8)
+	tp.PaddingTop    = UDim.new(0, 4)
+	tp.PaddingBottom = UDim.new(0, 4)
+	tp.Parent = _tooltipLabel
+
+	local tc = Instance.new("UICorner")
+	tc.CornerRadius = UDim.new(0, 6)
+	tc.Parent = _tooltipLabel
+
+	local ts = Instance.new("UIStroke")
+	ts.Color = Color3.fromRGB(255, 255, 255)
+	ts.Transparency = 0.88
+	ts.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ts.Parent = _tooltipLabel
+end
+
+function MacLib:AddTooltip(instance, text, disabledText)
+	if not instance or not text then return end
+	local function show()
+		if not _tooltipLabel or not _tooltipLabel.Parent then return end
+		_tooltipLabel.Text = text
+		_tooltipLabel.Visible = true
+		_tooltipConn = RunService.RenderStepped:Connect(function()
+			if not _tooltipLabel.Visible then return end
+			local m = UserInputService:GetMouseLocation()
+			local vp = workspace.CurrentCamera.ViewportSize
+			local tx = math.min(m.X + 14, vp.X - _tooltipLabel.AbsoluteSize.X - 4)
+			local ty = math.min(m.Y + 12, vp.Y - _tooltipLabel.AbsoluteSize.Y - 4)
+			_tooltipLabel.Position = UDim2.fromOffset(tx, ty)
+		end)
+	end
+	local function hide()
+		if _tooltipConn then _tooltipConn:Disconnect(); _tooltipConn = nil end
+		if _tooltipLabel then _tooltipLabel.Visible = false end
+	end
+	instance.MouseEnter:Connect(show)
+	instance.MouseLeave:Connect(hide)
+	if instance:IsA("GuiButton") then
+		instance.MouseButton1Down:Connect(hide)
+	end
+end
+
+-- ============================================================
+-- FEATURE: Global Search
+-- ============================================================
+local _searchElements = {}  -- {nameText, instance (the element row Frame)}
+
+local function _regSearch(nameText, rowInstance)
+	table.insert(_searchElements, { name = nameText:lower(), row = rowInstance })
+end
+
+local function _runSearch(text)
+	local q = text:lower():gsub("^%s*(.-)%s*$", "%1")
+	for _, entry in ipairs(_searchElements) do
+		if entry.row and entry.row.Parent then
+			entry.row.Visible = q == "" or entry.name:find(q, 1, true) ~= nil
+		end
+	end
+end
+
+function MacLib:SetupSearch(searchBox)
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		_runSearch(searchBox.Text)
+	end)
+end
+
+-- ============================================================
+-- FEATURE: Player Dropdown (SpecialType="Player")
+-- ============================================================
+local function _getPlayerNames(excludeSelf)
+	local names = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if not excludeSelf or p ~= LocalPlayer then
+			table.insert(names, p.Name)
+		end
+	end
+	table.sort(names)
+	return names
+end
+
 local function Tween(instance, tweeninfo, propertytable)
 	return TweenService:Create(instance, tweeninfo, propertytable)
 end
+
+
 
 --// Library Functions
 function MacLib:Window(Settings)
@@ -147,7 +589,13 @@ function MacLib:Window(Settings)
 
 	local macLib = GetGui()
 
-	-- Cursor — parented to same ScreenGui as UI, ZIndex 11000 = always on top (Obsidian style)
+	-- UIScale for DPI
+	local _uiScale = Instance.new("UIScale")
+	_uiScale.Scale = MacLib._dpi
+	_uiScale.Parent = macLib
+	table.insert(MacLib._scales, _uiScale)
+
+	-- Cursor
 	_cursor = Instance.new("Frame")
 	_cursor.Name = "Cursor"
 	_cursor.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -184,6 +632,19 @@ function MacLib:Window(Settings)
 	_cursorBorderV.Size = UDim2.new(1, 2, 1, 2)
 	_cursorBorderV.ZIndex = 10999
 	_cursorBorderV.Parent = _cursorV
+
+	-- Cursor custom icon (ChangeCursorIcon)
+	_cursorCustomImg = Instance.new("ImageLabel")
+	_cursorCustomImg.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorCustomImg.BackgroundTransparency = 1
+	_cursorCustomImg.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorCustomImg.Size = UDim2.fromOffset(20, 20)
+	_cursorCustomImg.ZIndex = 11000
+	_cursorCustomImg.Visible = false
+	_cursorCustomImg.Parent = _cursor
+
+	-- Tooltip
+	_initTooltip(macLib)
 
 	local notifications = Instance.new("Frame")
 	notifications.Name = "Notifications"
@@ -978,6 +1439,113 @@ function MacLib:Window(Settings)
 	globalSettings.Parent = base
 	base.Parent = macLib
 
+	-- ====== RESIZE HANDLE (bottom-right corner) ======
+	local resizeHandle = Instance.new("TextButton")
+	resizeHandle.Name = "ResizeHandle"
+	resizeHandle.Text = ""
+	resizeHandle.AnchorPoint = Vector2.new(1, 1)
+	resizeHandle.Position = UDim2.fromScale(1, 1)
+	resizeHandle.Size = UDim2.fromOffset(14, 14)
+	resizeHandle.BackgroundTransparency = 1
+	resizeHandle.BorderSizePixel = 0
+	resizeHandle.ZIndex = 5
+	resizeHandle.Parent = base
+
+	-- draw a small corner indicator
+	local rCornerL = Instance.new("Frame")
+	rCornerL.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	rCornerL.BackgroundTransparency = 0.7
+	rCornerL.BorderSizePixel = 0
+	rCornerL.AnchorPoint = Vector2.new(1, 1)
+	rCornerL.Position = UDim2.fromScale(1, 1)
+	rCornerL.Size = UDim2.fromOffset(8, 1)
+	rCornerL.Parent = resizeHandle
+
+	local rCornerV = Instance.new("Frame")
+	rCornerV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	rCornerV.BackgroundTransparency = 0.7
+	rCornerV.BorderSizePixel = 0
+	rCornerV.AnchorPoint = Vector2.new(1, 1)
+	rCornerV.Position = UDim2.fromScale(1, 1)
+	rCornerV.Size = UDim2.fromOffset(1, 8)
+	rCornerV.Parent = resizeHandle
+
+	do
+		local _rDrag, _rStart, _rBaseSize = false, nil, nil
+		resizeHandle.InputBegan:Connect(function(inp)
+			if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+			_rDrag = true
+			_rStart = inp.Position
+			_rBaseSize = base.Size
+			inp.Changed:Connect(function()
+				if inp.UserInputState == Enum.UserInputState.End then _rDrag = false end
+			end)
+		end)
+		UserInputService.InputChanged:Connect(function(inp)
+			if not _rDrag then return end
+			if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+			local delta = inp.Position - _rStart
+			local newW = math.max(MacLib._minSize.X, _rBaseSize.X.Offset + delta.X)
+			local newH = math.max(MacLib._minSize.Y, _rBaseSize.Y.Offset + delta.Y)
+			base.Size = UDim2.fromOffset(newW, newH)
+		end)
+	end
+
+	-- ====== GLOBAL SEARCH BAR (in title area) ======
+	local _searchBar = Instance.new("TextBox")
+	_searchBar.Name = "GlobalSearch"
+	_searchBar.PlaceholderText = "Search..."
+	_searchBar.PlaceholderColor3 = Color3.fromRGB(255, 255, 255)
+	_searchBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_searchBar.BackgroundTransparency = 0.94
+	_searchBar.BorderSizePixel = 0
+	_searchBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+	_searchBar.TextSize = 13
+	_searchBar.FontFace = Font.new(assets.interFont)
+	_searchBar.TextXAlignment = Enum.TextXAlignment.Left
+	_searchBar.ClearTextOnFocus = false
+	_searchBar.AnchorPoint = Vector2.new(1, 0.5)
+	_searchBar.Position = UDim2.new(1, -10, 0, 15)
+	_searchBar.Size = UDim2.fromOffset(160, 26)
+	_searchBar.ZIndex = 3
+	_searchBar.Parent = sidebar
+
+	local _sbCorner = Instance.new("UICorner")
+	_sbCorner.CornerRadius = UDim.new(0, 6)
+	_sbCorner.Parent = _searchBar
+
+	local _sbStroke = Instance.new("UIStroke")
+	_sbStroke.Color = Color3.fromRGB(255, 255, 255)
+	_sbStroke.Transparency = 0.88
+	_sbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	_sbStroke.Parent = _searchBar
+
+	local _sbPad = Instance.new("UIPadding")
+	_sbPad.PaddingLeft = UDim.new(0, 8)
+	_sbPad.PaddingRight = UDim.new(0, 8)
+	_sbPad.Parent = _searchBar
+
+	local _searchIcon = resolveIcon("search")
+	if _searchIcon then
+		local _siImg = Instance.new("ImageLabel")
+		_siImg.Image = _searchIcon.Url
+		_siImg.ImageRectOffset = _searchIcon.ImageRectOffset
+		_siImg.ImageRectSize = _searchIcon.ImageRectSize
+		_siImg.ImageTransparency = 0.6
+		_siImg.BackgroundTransparency = 1
+		_siImg.Size = UDim2.fromOffset(14, 14)
+		_siImg.AnchorPoint = Vector2.new(0, 0.5)
+		_siImg.Position = UDim2.new(0, 6, 0.5, 0)
+		_siImg.ZIndex = 4
+		_siImg.Parent = _searchBar
+		_sbPad.PaddingLeft = UDim.new(0, 24)
+	end
+
+	_searchBar:GetPropertyChangedSignal("Text"):Connect(function()
+		_runSearch(_searchBar.Text)
+	end)
+	WindowFunctions.SearchBar = _searchBar
+
 	function WindowFunctions:UpdateTitle(NewTitle)
 		title.Text = NewTitle
 	end
@@ -1771,6 +2339,12 @@ function MacLib:Window(Settings)
 					buttonInteract.Parent = button
 					buttonInteract.Text = ButtonFunctions.Settings.Name
 
+					-- search + tooltip
+					_regSearch(ButtonFunctions.Settings.Name or "", button)
+					if ButtonFunctions.Settings.Tooltip then
+						MacLib:AddTooltip(button, ButtonFunctions.Settings.Tooltip)
+					end
+
 					local buttonImage = Instance.new("ImageLabel")
 					buttonImage.Name = "ButtonImage"
 					buttonImage.Image = assets.buttonImage
@@ -1851,13 +2425,18 @@ function MacLib:Window(Settings)
 					toggleName.TextYAlignment = Enum.TextYAlignment.Top
 					toggleName.AnchorPoint = Vector2.new(0, 0.5)
 					toggleName.AutomaticSize = Enum.AutomaticSize.Y
-					toggleName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					toggleName.BackgroundTransparency = 1
-					toggleName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					toggleName.BorderSizePixel = 0
 					toggleName.Position = UDim2.fromScale(0, 0.5)
 					toggleName.Size = UDim2.new(1, -50, 0, 0)
 					toggleName.Parent = toggle
+
+					-- search registration
+					_regSearch(ToggleFunctions.Settings.Name or "", toggle)
+					-- tooltip
+					if ToggleFunctions.Settings.Tooltip then
+						MacLib:AddTooltip(toggle, ToggleFunctions.Settings.Tooltip)
+					end
 
 					local toggle1 = Instance.new("ImageButton")
 					toggle1.Name = "Toggle"
@@ -2001,7 +2580,10 @@ function MacLib:Window(Settings)
 					sliderName.Position = UDim2.fromScale(1.3e-07, 0.5)
 					sliderName.Parent = slider
 
-					local sliderElements = Instance.new("Frame")
+					_regSearch(SliderFunctions.Settings.Name or "", slider)
+					if SliderFunctions.Settings.Tooltip then
+						MacLib:AddTooltip(slider, SliderFunctions.Settings.Tooltip)
+					end
 					sliderElements.Name = "SliderElements"
 					sliderElements.AnchorPoint = Vector2.new(1, 0)
 					sliderElements.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -3072,6 +3654,28 @@ function MacLib:Window(Settings)
 						for i, v in pairs(DropdownFunctions.Settings.Options) do
 							addOption(i, v)
 						end
+					end
+
+					-- SpecialType="Player": auto-populate + live update
+					if DropdownFunctions.Settings.SpecialType == "Player" then
+						local excludeSelf = DropdownFunctions.Settings.ExcludeLocalPlayer == true
+						local function refreshPlayers()
+							-- clear existing options
+							for _, obj in ipairs(dropdownScroll:GetChildren()) do
+								if obj:IsA("TextButton") then obj:Destroy() end
+							end
+							OptionObjs = {}
+							Selected = {}
+							local names = _getPlayerNames(excludeSelf)
+							for i, name in ipairs(names) do
+								addOption(i, name)
+							end
+							if dropped then
+								dropdown.Size = UDim2.new(1, 0, 0, CalculateDropdownSize())
+							end
+						end
+						refreshPlayers()
+						table.insert(MacLib._playerDrops, { refresh = refreshPlayers })
 					end
 
 					function DropdownFunctions:UpdateName(New)
@@ -4529,33 +5133,30 @@ function MacLib:Window(Settings)
 
 				function SectionFunctions:Label(Settings, Flag)
 					local LabelFunctions = {Settings = Settings}
+					local doesWrap = Settings.Wrap == true
 
 					local label = Instance.new("Frame")
 					label.Name = "Label"
 					label.AutomaticSize = Enum.AutomaticSize.Y
-					label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 					label.BackgroundTransparency = 1
-					label.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					label.BorderSizePixel = 0
-					label.Size = UDim2.new(1, 0, 0, 38)
+					label.Size = doesWrap and UDim2.new(1, 0, 0, 0) or UDim2.new(1, 0, 0, 38)
 					label.Parent = section
 
 					local labelText = Instance.new("TextLabel")
 					labelText.Name = "LabelText"
 					labelText.FontFace = Font.new(assets.interFont)
 					labelText.RichText = true
-					labelText.Text = LabelFunctions.Settings.Text or LabelFunctions.Settings.Name -- Settings.Name Deprecated use Settings.Text
+					labelText.Text = LabelFunctions.Settings.Text or LabelFunctions.Settings.Name
 					labelText.TextColor3 = Color3.fromRGB(255, 255, 255)
 					labelText.TextSize = 13
 					labelText.TextTransparency = 0.5
 					labelText.TextWrapped = true
 					labelText.TextXAlignment = Enum.TextXAlignment.Left
 					labelText.AutomaticSize = Enum.AutomaticSize.Y
-					labelText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					labelText.BackgroundTransparency = 1
-					labelText.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					labelText.BorderSizePixel = 0
-					labelText.Size = UDim2.fromScale(1, 1)
+					labelText.Size = UDim2.fromScale(1, doesWrap and 0 or 1)
 					labelText.Parent = label
 
 					function LabelFunctions:UpdateName(New)
@@ -5844,6 +6445,24 @@ function MacLib:Window(Settings)
 	end
 
 	if not isMobile then _showCursor(true) end
+
+	-- Live player list updates for SpecialType="Player" dropdowns
+	Players.PlayerAdded:Connect(function()
+		for _, d in ipairs(MacLib._playerDrops) do pcall(d.refresh) end
+	end)
+	Players.PlayerRemoving:Connect(function()
+		task.defer(function()
+			for _, d in ipairs(MacLib._playerDrops) do pcall(d.refresh) end
+		end)
+	end)
+
+	-- Expose feature APIs on Window
+	function WindowFunctions:SetDPIScale(scale) MacLib:SetDPIScale(scale) end
+	function WindowFunctions:SetFont(f) MacLib:SetFont(f) end
+	function WindowFunctions:SetCursorIcon(name) MacLib:SetCursorIcon(name) end
+	function WindowFunctions:SetCursorIconSize(u) MacLib:SetCursorIconSize(u) end
+	function WindowFunctions:ResetCursorIcon() MacLib:ResetCursorIcon() end
+	function WindowFunctions:AddFloatingLabel(text) return MacLib:AddFloatingLabel(text) end
 
 	return WindowFunctions
 end
