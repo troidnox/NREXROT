@@ -5768,6 +5768,76 @@ function MacLib:Window(Settings)
 	macLib.Enabled = true
 	windowState = true
 
+	-- Mobile support — draggable toggle button (Obsidian style)
+	local isMobile = (function()
+		local ok, plat = pcall(function() return UserInputService:GetPlatform() end)
+		if ok then
+			return plat == Enum.Platform.Android or plat == Enum.Platform.IOS
+		end
+		return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	end)()
+
+	if isMobile then
+		_showCursor(false) -- no crosshair cursor on mobile
+
+		local mobileBtn = Instance.new("TextButton")
+		mobileBtn.Name = "MobileToggle"
+		mobileBtn.Text = "☰"
+		mobileBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		mobileBtn.TextSize = 20
+		mobileBtn.Font = Enum.Font.GothamBold
+		mobileBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+		mobileBtn.BackgroundTransparency = 0.1
+		mobileBtn.BorderSizePixel = 0
+		mobileBtn.Size = UDim2.fromOffset(44, 44)
+		mobileBtn.Position = UDim2.fromOffset(6, 6)
+		mobileBtn.ZIndex = 11000
+		mobileBtn.AutoButtonColor = false
+		mobileBtn.Parent = macLib
+
+		local mobileBtnCorner = Instance.new("UICorner")
+		mobileBtnCorner.CornerRadius = UDim.new(0, 8)
+		mobileBtnCorner.Parent = mobileBtn
+
+		local mobileBtnStroke = Instance.new("UIStroke")
+		mobileBtnStroke.Color = Color3.fromRGB(138, 79, 255)
+		mobileBtnStroke.Transparency = 0.5
+		mobileBtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		mobileBtnStroke.Parent = mobileBtn
+
+		-- Draggable + tap to toggle
+		local _dragging, _dragStart, _startPos = false, nil, nil
+		local DRAG_THRESHOLD = 0.25 -- seconds to distinguish drag from tap
+
+		mobileBtn.InputBegan:Connect(function(inp)
+			if inp.UserInputType ~= Enum.UserInputType.Touch then return end
+			_dragging = false
+			_dragStart = tick()
+			_startPos = mobileBtn.Position
+			local startTouch = inp.Position
+
+			local moveConn, endConn
+			moveConn = inp.Changed:Connect(function()
+				if inp.UserInputState == Enum.UserInputState.Change then
+					_dragging = true
+					local delta = inp.Position - startTouch
+					mobileBtn.Position = UDim2.fromOffset(
+						math.clamp(_startPos.X.Offset + delta.X, 0, macLib.AbsoluteSize.X - 44),
+						math.clamp(_startPos.Y.Offset + delta.Y, 0, macLib.AbsoluteSize.Y - 44)
+					)
+				elseif inp.UserInputState == Enum.UserInputState.End then
+					if moveConn then moveConn:Disconnect() end
+					if endConn  then endConn:Disconnect()  end
+					-- tap = short press without significant movement
+					if tick() - _dragStart < DRAG_THRESHOLD and not _dragging then
+						ToggleMenu()
+					end
+					_dragging = false
+				end
+			end)
+		end)
+	end
+
 	return WindowFunctions
 end
 
