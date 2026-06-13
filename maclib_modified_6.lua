@@ -85,7 +85,6 @@ end
 --// Functions
 local function GetGui()
 	local newGui = Instance.new("ScreenGui")
-	newGui.ScreenInsets = Enum.ScreenInsets.None
 	newGui.ResetOnSpawn = false
 	newGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	newGui.DisplayOrder = 2147483647
@@ -103,10 +102,12 @@ end
 local _cursor, _cursorV
 local _mouse = LocalPlayer:GetMouse()
 local _cursorBinding = "MacLibCursor"
-local _oldMouseIcon
+local _oldMouseIcon = true
 
 local function _showCursor(state)
 	if state then
+		_oldMouseIcon = UserInputService.MouseIconEnabled
+		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
 		RunService:BindToRenderStep(_cursorBinding, Enum.RenderPriority.Last.Value, function()
 			if not _cursor then return end
 			pcall(function() UserInputService.MouseIconEnabled = false end)
@@ -116,7 +117,7 @@ local function _showCursor(state)
 	else
 		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
 		if _cursor then _cursor.Visible = false end
-		pcall(function() UserInputService.MouseIconEnabled = true end)
+		pcall(function() UserInputService.MouseIconEnabled = _oldMouseIcon end)
 	end
 end
 
@@ -1438,112 +1439,64 @@ function MacLib:Window(Settings)
 	globalSettings.Parent = base
 	base.Parent = macLib
 
-	-- ====== RESIZE HANDLE (bottom-right corner) ======
-	local resizeHandle = Instance.new("TextButton")
+	-- ====== RESIZE HANDLE (bottom-right corner, Lucide icon) ======
+	local resizeHandle = Instance.new("ImageLabel")
 	resizeHandle.Name = "ResizeHandle"
-	resizeHandle.Text = ""
 	resizeHandle.AnchorPoint = Vector2.new(1, 1)
-	resizeHandle.Position = UDim2.fromScale(1, 1)
-	resizeHandle.Size = UDim2.fromOffset(14, 14)
+	resizeHandle.Position = UDim2.new(1, -6, 1, -6)
+	resizeHandle.Size = UDim2.fromOffset(16, 16)
 	resizeHandle.BackgroundTransparency = 1
 	resizeHandle.BorderSizePixel = 0
-	resizeHandle.ZIndex = 5
+	resizeHandle.ImageTransparency = 0.5
+	resizeHandle.ZIndex = 10
 	resizeHandle.Parent = base
 
-	-- draw a small corner indicator
-	local rCornerL = Instance.new("Frame")
-	rCornerL.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	rCornerL.BackgroundTransparency = 0.7
-	rCornerL.BorderSizePixel = 0
-	rCornerL.AnchorPoint = Vector2.new(1, 1)
-	rCornerL.Position = UDim2.fromScale(1, 1)
-	rCornerL.Size = UDim2.fromOffset(8, 1)
-	rCornerL.Parent = resizeHandle
+	do
+		local _rIcon = resolveIcon("maximize-2")
+		if _rIcon then
+			resizeHandle.Image = _rIcon.Url
+			resizeHandle.ImageRectOffset = _rIcon.ImageRectOffset
+			resizeHandle.ImageRectSize = _rIcon.ImageRectSize
+		end
+	end
 
-	local rCornerV = Instance.new("Frame")
-	rCornerV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	rCornerV.BackgroundTransparency = 0.7
-	rCornerV.BorderSizePixel = 0
-	rCornerV.AnchorPoint = Vector2.new(1, 1)
-	rCornerV.Position = UDim2.fromScale(1, 1)
-	rCornerV.Size = UDim2.fromOffset(1, 8)
-	rCornerV.Parent = resizeHandle
+	-- make it interactive
+	local _resizeBtn = Instance.new("TextButton")
+	_resizeBtn.BackgroundTransparency = 1
+	_resizeBtn.Text = ""
+	_resizeBtn.Size = UDim2.fromScale(1, 1)
+	_resizeBtn.ZIndex = 11
+	_resizeBtn.Parent = resizeHandle
 
 	do
-		local _rDrag, _rStart, _rBaseSize = false, nil, nil
-		resizeHandle.InputBegan:Connect(function(inp)
+		local _rDrag = false
+		local _rStartX, _rStartY = 0, 0
+		local _rStartW, _rStartH = 0, 0
+
+		_resizeBtn.InputBegan:Connect(function(inp)
 			if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 			_rDrag = true
-			_rStart = inp.Position
-			_rBaseSize = base.Size
+			local loc = UserInputService:GetMouseLocation()
+			_rStartX, _rStartY = loc.X, loc.Y
+			_rStartW = base.AbsoluteSize.X
+			_rStartH = base.AbsoluteSize.Y
 			inp.Changed:Connect(function()
 				if inp.UserInputState == Enum.UserInputState.End then _rDrag = false end
 			end)
 		end)
+
 		UserInputService.InputChanged:Connect(function(inp)
 			if not _rDrag then return end
 			if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-			local delta = inp.Position - _rStart
-			local newW = math.max(MacLib._minSize.X, _rBaseSize.X.Offset + delta.X)
-			local newH = math.max(MacLib._minSize.Y, _rBaseSize.Y.Offset + delta.Y)
+			local loc = UserInputService:GetMouseLocation()
+			local newW = math.max(MacLib._minSize.X, _rStartW + (loc.X - _rStartX))
+			local newH = math.max(MacLib._minSize.Y, _rStartH + (loc.Y - _rStartY))
 			base.Size = UDim2.fromOffset(newW, newH)
 		end)
 	end
 
-	-- ====== GLOBAL SEARCH BAR (in title area) ======
-	local _searchBar = Instance.new("TextBox")
-	_searchBar.Name = "GlobalSearch"
-	_searchBar.PlaceholderText = "Search..."
-	_searchBar.PlaceholderColor3 = Color3.fromRGB(255, 255, 255)
-	_searchBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	_searchBar.BackgroundTransparency = 0.94
-	_searchBar.BorderSizePixel = 0
-	_searchBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-	_searchBar.TextSize = 13
-	_searchBar.FontFace = Font.new(assets.interFont)
-	_searchBar.TextXAlignment = Enum.TextXAlignment.Left
-	_searchBar.ClearTextOnFocus = false
-	_searchBar.AnchorPoint = Vector2.new(1, 0.5)
-	_searchBar.Position = UDim2.new(1, -10, 0, 15)
-	_searchBar.Size = UDim2.fromOffset(160, 26)
-	_searchBar.ZIndex = 3
-	_searchBar.Parent = sidebar
 
-	local _sbCorner = Instance.new("UICorner")
-	_sbCorner.CornerRadius = UDim.new(0, 6)
-	_sbCorner.Parent = _searchBar
 
-	local _sbStroke = Instance.new("UIStroke")
-	_sbStroke.Color = Color3.fromRGB(255, 255, 255)
-	_sbStroke.Transparency = 0.88
-	_sbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	_sbStroke.Parent = _searchBar
-
-	local _sbPad = Instance.new("UIPadding")
-	_sbPad.PaddingLeft = UDim.new(0, 8)
-	_sbPad.PaddingRight = UDim.new(0, 8)
-	_sbPad.Parent = _searchBar
-
-	local _searchIcon = resolveIcon("search")
-	if _searchIcon then
-		local _siImg = Instance.new("ImageLabel")
-		_siImg.Image = _searchIcon.Url
-		_siImg.ImageRectOffset = _searchIcon.ImageRectOffset
-		_siImg.ImageRectSize = _searchIcon.ImageRectSize
-		_siImg.ImageTransparency = 0.6
-		_siImg.BackgroundTransparency = 1
-		_siImg.Size = UDim2.fromOffset(14, 14)
-		_siImg.AnchorPoint = Vector2.new(0, 0.5)
-		_siImg.Position = UDim2.new(0, 6, 0.5, 0)
-		_siImg.ZIndex = 4
-		_siImg.Parent = _searchBar
-		_sbPad.PaddingLeft = UDim.new(0, 24)
-	end
-
-	_searchBar:GetPropertyChangedSignal("Text"):Connect(function()
-		_runSearch(_searchBar.Text)
-	end)
-	WindowFunctions.SearchBar = _searchBar
 
 	function WindowFunctions:UpdateTitle(NewTitle)
 		title.Text = NewTitle
