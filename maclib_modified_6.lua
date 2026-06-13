@@ -100,20 +100,16 @@ local _oldMouseIcon
 
 local function _showCursor(state)
 	if state then
-		_oldMouseIcon = UserInputService.MouseIconEnabled
-		UserInputService.MouseIconEnabled = false
 		RunService:BindToRenderStep(_cursorBinding, Enum.RenderPriority.Last.Value, function()
-			if _cursor then
-				_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
-				_cursor.Visible = true
-			end
+			if not _cursor then return end
+			UserInputService.MouseIconEnabled = false
+			_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
+			_cursor.Visible = true
 		end)
 	else
 		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
 		if _cursor then _cursor.Visible = false end
-		if _oldMouseIcon ~= nil then
-			UserInputService.MouseIconEnabled = _oldMouseIcon
-		end
+		UserInputService.MouseIconEnabled = true
 	end
 end
 
@@ -5787,7 +5783,7 @@ function MacLib:Window(Settings)
 	end)()
 
 	if isMobile then
-		_showCursor(false) -- no crosshair cursor on mobile
+		_showCursor(false) -- no crosshair on mobile
 
 		local mobileBtn = Instance.new("TextButton")
 		mobileBtn.Name = "MobileToggle"
@@ -5846,6 +5842,8 @@ function MacLib:Window(Settings)
 			end)
 		end)
 	end
+
+	if not isMobile then _showCursor(true) end
 
 	return WindowFunctions
 end
