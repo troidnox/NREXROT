@@ -546,12 +546,22 @@ function MacLib:Window(Settings)
 	local userInfo = Instance.new("Frame")
 	userInfo.Name = "UserInfo"
 	userInfo.AnchorPoint = Vector2.new(0, 1)
-	userInfo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	userInfo.BackgroundTransparency = 1
+	userInfo.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	userInfo.BackgroundTransparency = 0.4
 	userInfo.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	userInfo.BorderSizePixel = 0
 	userInfo.Position = UDim2.fromScale(0, 1)
-	userInfo.Size = UDim2.new(1, 0, 0, 107)
+	userInfo.Size = UDim2.new(1, 0, 0, 60)
+
+	local userInfoCorner = Instance.new("UICorner")
+	userInfoCorner.CornerRadius = UDim.new(0, 8)
+	userInfoCorner.Parent = userInfo
+
+	local userInfoStroke = Instance.new("UIStroke")
+	userInfoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	userInfoStroke.Color = Color3.fromRGB(138, 79, 255)
+	userInfoStroke.Transparency = 0.7
+	userInfoStroke.Parent = userInfo
 
 	local informationGroup = Instance.new("Frame")
 	informationGroup.Name = "InformationGroup"
@@ -1673,6 +1683,7 @@ function MacLib:Window(Settings)
 
 				local sectionUICorner = Instance.new("UICorner")
 				sectionUICorner.Name = "SectionUICorner"
+				sectionUICorner.CornerRadius = UDim.new(0, 8)
 				sectionUICorner.Parent = section
 
 				local sectionUIStroke = Instance.new("UIStroke")
@@ -1698,17 +1709,23 @@ function MacLib:Window(Settings)
 
 				-- Obsidian-style section header
 				if Settings.Name or Settings.Image then
-					local headerH = 34
+					local headerH = 40
 
 					local headerStrip = Instance.new("Frame")
 					headerStrip.Name = "SectionHeader"
-					headerStrip.BackgroundTransparency = 1
+					headerStrip.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+					headerStrip.BackgroundTransparency = 0.88
 					headerStrip.BorderSizePixel = 0
 					headerStrip.Size = UDim2.new(1, 0, 0, headerH)
 					headerStrip.LayoutOrder = -2
+					headerStrip.ClipsDescendants = true
 					headerStrip.Parent = section
 
-					local xOff = 10
+					local headerStripCorner = Instance.new("UICorner")
+					headerStripCorner.CornerRadius = UDim.new(0, 8)
+					headerStripCorner.Parent = headerStrip
+
+					local xOff = 12
 
 					if Settings.Image then
 						local _icon = resolveIcon(Settings.Image)
@@ -1727,8 +1744,9 @@ function MacLib:Window(Settings)
 							iconImg.Parent = headerStrip
 							if MacLib._accentElements then
 								table.insert(MacLib._accentElements, { inst=iconImg, prop="ImageColor3" })
+								table.insert(MacLib._accentElements, { inst=headerStrip, prop="BackgroundColor3" })
 							end
-							xOff = xOff + 22
+							xOff = xOff + 24
 						end
 					end
 
@@ -1740,7 +1758,7 @@ function MacLib:Window(Settings)
 						headerLbl.RichText = true
 						headerLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 						headerLbl.TextSize = 13
-						headerLbl.TextTransparency = 0.2
+						headerLbl.TextTransparency = 0.05
 						headerLbl.TextXAlignment = Enum.TextXAlignment.Left
 						headerLbl.TextYAlignment = Enum.TextYAlignment.Center
 						headerLbl.BackgroundTransparency = 1
@@ -1752,11 +1770,14 @@ function MacLib:Window(Settings)
 
 					local divLine = Instance.new("Frame")
 					divLine.Name = "SectionDivider"
-					divLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					divLine.BackgroundTransparency = 0.88
+					divLine.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+					divLine.BackgroundTransparency = 0.7
 					divLine.BorderSizePixel = 0
 					divLine.Size = UDim2.new(1, 0, 0, 1)
 					divLine.LayoutOrder = -1
+					if MacLib._accentElements then
+						table.insert(MacLib._accentElements, { inst=divLine, prop="BackgroundColor3" })
+					end
 					divLine.Parent = section
 				end
 
@@ -2974,14 +2995,13 @@ function MacLib:Window(Settings)
 						optionName.TextTransparency = 0.5
 						optionName.TextTruncate = Enum.TextTruncate.AtEnd
 						optionName.TextXAlignment = Enum.TextXAlignment.Left
-						optionName.TextYAlignment = Enum.TextYAlignment.Top
+						optionName.TextYAlignment = Enum.TextYAlignment.Center
 						optionName.AnchorPoint = Vector2.new(0, 0.5)
-						optionName.AutomaticSize = Enum.AutomaticSize.XY
-						optionName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+						optionName.AutomaticSize = Enum.AutomaticSize.None
+						optionName.Size = UDim2.new(1, 0, 1, 0)
 						optionName.BackgroundTransparency = 1
-						optionName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 						optionName.BorderSizePixel = 0
-						optionName.Position = UDim2.fromScale(1.3e-07, 0.5)
+						optionName.Position = UDim2.fromScale(0, 0.5)
 						optionName.Parent = option
 
 						local optionUIListLayout = Instance.new("UIListLayout")
