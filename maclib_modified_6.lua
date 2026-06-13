@@ -1383,7 +1383,7 @@ function MacLib:Window(Settings)
 			sidebar.Size = UDim2.new(0, newSidebarWidth, 1, 0)
 			content.Size = UDim2.new(0, base.AbsoluteSize.X - newSidebarWidth, 1, 0)
 		end
-	end)
+	end))
 
 	local topbar = Instance.new("Frame")
 	topbar.Name = "Topbar"
