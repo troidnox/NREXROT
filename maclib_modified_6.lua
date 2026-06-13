@@ -2677,7 +2677,6 @@ function MacLib:Window(Settings)
 					dropdownFrame.Name = "DropdownFrame"
 					dropdownFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					dropdownFrame.BackgroundTransparency = 1
-					dropdownFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					dropdownFrame.BorderSizePixel = 0
 					dropdownFrame.ClipsDescendants = true
 					dropdownFrame.Size = UDim2.fromScale(1, 1)
@@ -2690,7 +2689,29 @@ function MacLib:Window(Settings)
 					dropdownFrameUIPadding.PaddingBottom = UDim.new(0, 0)
 					dropdownFrameUIPadding.Parent = dropdownFrame
 
-					-- scrollable options list
+					-- stack search + scroll vertically inside dropdownFrame
+					local dropdownInnerLayout = Instance.new("UIListLayout")
+					dropdownInnerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					dropdownInnerLayout.FillDirection = Enum.FillDirection.Vertical
+					dropdownInnerLayout.Padding = UDim.new(0, 4)
+					dropdownInnerLayout.Parent = dropdownFrame
+
+					local search = Instance.new("Frame")
+					search.Name = "Search"
+					search.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					search.BackgroundTransparency = 0.95
+					search.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					search.BorderSizePixel = 0
+					search.LayoutOrder = 0
+					search.Size = UDim2.new(1, 0, 0, 30)
+					search.Parent = dropdownFrame
+					search.Visible = DropdownFunctions.Settings.Search
+
+					local sectionUICorner = Instance.new("UICorner")
+					sectionUICorner.Name = "SectionUICorner"
+					sectionUICorner.Parent = search
+
+					-- scrollable options list (below search)
 					local dropdownScroll = Instance.new("ScrollingFrame")
 					dropdownScroll.Name = "DropdownScroll"
 					dropdownScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -2701,7 +2722,8 @@ function MacLib:Window(Settings)
 					dropdownScroll.TopImage = ""
 					dropdownScroll.BackgroundTransparency = 1
 					dropdownScroll.BorderSizePixel = 0
-					dropdownScroll.Size = UDim2.new(1, 0, 1, 0)
+					dropdownScroll.LayoutOrder = 1
+					dropdownScroll.Size = UDim2.new(1, 0, 0, 150)
 					dropdownScroll.Parent = dropdownFrame
 
 					local dropdownFrameUIListLayout = Instance.new("UIListLayout")
@@ -2714,21 +2736,6 @@ function MacLib:Window(Settings)
 					dropdownScrollPad.PaddingBottom = UDim.new(0, 8)
 					dropdownScrollPad.PaddingTop = UDim.new(0, 4)
 					dropdownScrollPad.Parent = dropdownScroll
-
-					local search = Instance.new("Frame")
-					search.Name = "Search"
-					search.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					search.BackgroundTransparency = 0.95
-					search.BorderColor3 = Color3.fromRGB(0, 0, 0)
-					search.BorderSizePixel = 0
-					search.LayoutOrder = -1
-					search.Size = UDim2.new(1, 0, 0, 30)
-					search.Parent = dropdownFrame
-					search.Visible = DropdownFunctions.Settings.Search
-
-					local sectionUICorner = Instance.new("UICorner")
-					sectionUICorner.Name = "SectionUICorner"
-					sectionUICorner.Parent = search
 
 					local searchIcon = Instance.new("ImageLabel")
 					searchIcon.Name = "SearchIcon"
@@ -2769,19 +2776,21 @@ function MacLib:Window(Settings)
 					searchBox.Size = UDim2.fromScale(1, 1)
 
 					local MAX_DROPDOWN_H = 200
-					local function CalculateDropdownSize()
-						local totalHeight = 0
-						local visibleChildrenCount = 0
-						for _, v in pairs(dropdownScroll:GetChildren()) do
-							if not v:IsA("UIComponent") and v.Visible then
-								totalHeight += v.AbsoluteSize.Y
-								visibleChildrenCount += 1
-							end
+				local function CalculateDropdownSize()
+					local totalHeight = 0
+					local visibleChildrenCount = 0
+					for _, v in pairs(dropdownScroll:GetChildren()) do
+						if not v:IsA("UIComponent") and v.Visible then
+							totalHeight += v.AbsoluteSize.Y
+							visibleChildrenCount += 1
 						end
-						local spacing = dropdownFrameUIListLayout.Padding.Offset * math.max(0, visibleChildrenCount - 1)
-						local optH = math.min(totalHeight + spacing + 12, MAX_DROPDOWN_H)
-						return 38 + optH + (DropdownFunctions.Settings.Search and 34 or 0)
 					end
+					local spacing = dropdownFrameUIListLayout.Padding.Offset * math.max(0, visibleChildrenCount - 1)
+					local optH = math.min(totalHeight + spacing + 12, MAX_DROPDOWN_H)
+					local searchH = (DropdownFunctions.Settings.Search and search.Visible) and 34 or 0
+					dropdownScroll.Size = UDim2.new(1, 0, 0, optH)
+					return 38 + searchH + optH + (searchH > 0 and 4 or 0) + 8
+				end
 
 					local function findOption()
 						local searchTerm = searchBox.Text:lower()
