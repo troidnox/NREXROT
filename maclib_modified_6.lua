@@ -393,38 +393,6 @@ function MacLib:Window(Settings)
 	informationHolderUIPadding.PaddingTop = UDim.new(0, 10)
 	informationHolderUIPadding.Parent = informationHolder
 
-	local globalSettingsButton = Instance.new("ImageButton")
-	globalSettingsButton.Name = "GlobalSettingsButton"
-	globalSettingsButton.Image = assets.globe
-	globalSettingsButton.ImageTransparency = 0.5
-	globalSettingsButton.AnchorPoint = Vector2.new(1, 0.5)
-	globalSettingsButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	globalSettingsButton.BackgroundTransparency = 1
-	globalSettingsButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-	globalSettingsButton.BorderSizePixel = 0
-	globalSettingsButton.Position = UDim2.fromScale(1, 0.5)
-	globalSettingsButton.Size = UDim2.fromOffset(16,16)
-	globalSettingsButton.Parent = informationHolder
-
-	local function ChangeGlobalSettingsButtonState(State)
-		if State == "Default" then
-			Tween(globalSettingsButton, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
-				ImageTransparency = 0.5
-			}):Play()
-		elseif State == "Hover" then
-			Tween(globalSettingsButton, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
-				ImageTransparency = 0.3
-			}):Play()
-		end
-	end
-
-	globalSettingsButton.MouseEnter:Connect(function()
-		ChangeGlobalSettingsButtonState("Hover")
-	end)
-	globalSettingsButton.MouseLeave:Connect(function()
-		ChangeGlobalSettingsButtonState("Default")
-	end)
-
 	local titleFrame = Instance.new("Frame")
 	titleFrame.Name = "TitleFrame"
 	titleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -610,7 +578,7 @@ function MacLib:Window(Settings)
 		Enum.FontWeight.SemiBold,
 		Enum.FontStyle.Normal
 	)
-	username.Text = "v2.1  ·  VV Ultimatum"
+	username.Text = "v2.1  ·  discord.gg/zerohub"
 	username.TextColor3 = Color3.fromRGB(255, 255, 255)
 	username.TextSize = 12
 	username.TextTransparency = 0.7
@@ -998,10 +966,6 @@ function MacLib:Window(Settings)
 			toggled = false
 		end
 	end
-	globalSettingsButton.MouseButton1Click:Connect(function()
-		if not hasGlobalSetting then return end
-		toggle()
-	end)
 	globalSettings.MouseEnter:Connect(function()
 		hovering = true
 	end)
@@ -2039,7 +2003,7 @@ function MacLib:Window(Settings)
 					local sliderBar = Instance.new("ImageLabel")
 					sliderBar.Name = "SliderBar"
 					sliderBar.Image = assets.sliderbar
-					sliderBar.ImageColor3 = Color3.fromRGB(87, 86, 86)
+					sliderBar.ImageColor3 = Color3.fromRGB(138, 79, 255)
 					sliderBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					sliderBar.BackgroundTransparency = 1
 					sliderBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2050,6 +2014,7 @@ function MacLib:Window(Settings)
 					local sliderHead = Instance.new("ImageButton")
 					sliderHead.Name = "SliderHead"
 					sliderHead.Image = assets.sliderhead
+					sliderHead.ImageColor3 = Color3.fromRGB(138, 79, 255)
 					sliderHead.AnchorPoint = Vector2.new(0.5, 0.5)
 					sliderHead.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					sliderHead.BackgroundTransparency = 1
