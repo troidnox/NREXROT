@@ -4,13 +4,20 @@ local MacLib = {
 	GetService = function(service)
 		return cloneref and cloneref(game:GetService(service)) or game:GetService(service)
 	end,
-	-- Feature state
-	_scales        = {},   -- all UIScale instances (for DPI)
-	_fontRegistry  = {},   -- {instance=TextLabel/Button, prop="FontFace"}
-	_elementList   = {},   -- all created elements for global search
-	_playerDrops   = {},   -- dropdowns with SpecialType="Player"
+	_scales        = {},
+	_fontRegistry  = {},
+	_elementList   = {},
+	_playerDrops   = {},
+	_keybindReg    = {},   -- all registered keybinds for the floating panel
 	_dpi           = 1,
 	_minSize       = Vector2.new(600, 400),
+	Scheme = {
+		BackgroundColor = Color3.fromRGB(12, 12, 12),
+		MainColor       = Color3.fromRGB(24, 24, 24),
+		AccentColor     = Color3.fromRGB(138, 79, 255),
+		OutlineColor    = Color3.fromRGB(45, 45, 45),
+		FontColor       = Color3.new(1, 1, 1),
+	},
 }
 
 --// Services
@@ -261,8 +268,190 @@ function MacLib:AddFloatingLabel(text)
 end
 
 -- ============================================================
--- FEATURE: Loading Screen
+-- FEATURE: Floating Keybind Menu (Obsidian style)
 -- ============================================================
+local _keybindMenu = nil
+
+function MacLib:CreateKeybindMenu()
+	if _keybindMenu then return _keybindMenu end
+
+	local parent = (gethui and gethui())
+		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+	local frame = Instance.new("Frame")
+	frame.Name = "KeybindsMenu"
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.BackgroundColor3 = MacLib.Scheme.MainColor
+	frame.BorderSizePixel = 0
+	frame.Position = UDim2.fromOffset(6, 6)
+	frame.Size = UDim2.fromOffset(220, 0)
+	frame.Visible = false
+	frame.ZIndex = 100
+	frame.ClipsDescendants = true
+	frame.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = MacLib.Scheme.OutlineColor
+	stroke.Transparency = 0
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = frame
+
+	-- title bar
+	local titleBar = Instance.new("Frame")
+	titleBar.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
+	titleBar.BackgroundTransparency = 0.85
+	titleBar.BorderSizePixel = 0
+	titleBar.Size = UDim2.new(1, 0, 0, 32)
+	titleBar.ZIndex = 101
+	titleBar.Parent = frame
+
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 8)
+	titleCorner.Parent = titleBar
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Size = UDim2.fromScale(1, 1)
+	titleLbl.Text = "Keybinds"
+	titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLbl.TextSize = 13
+	titleLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
+	titleLbl.ZIndex = 102
+	titleLbl.Parent = titleBar
+
+	local titlePad = Instance.new("UIPadding")
+	titlePad.PaddingLeft = UDim.new(0, 12)
+	titlePad.Parent = titleBar
+
+	-- content list
+	local container = Instance.new("Frame")
+	container.BackgroundTransparency = 1
+	container.BorderSizePixel = 0
+	container.Position = UDim2.fromOffset(0, 32)
+	container.AutomaticSize = Enum.AutomaticSize.Y
+	container.Size = UDim2.new(1, 0, 0, 0)
+	container.ZIndex = 101
+	container.Parent = frame
+
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 0)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = container
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingTop = UDim.new(0, 4)
+	pad.Parent = container
+
+	-- draggable
+	local _drag, _dStart, _dPos = false, nil, nil
+	titleBar.InputBegan:Connect(function(inp)
+		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		_drag = true; _dStart = inp.Position; _dPos = frame.Position
+		inp.Changed:Connect(function()
+			if inp.UserInputState == Enum.UserInputState.End then _drag = false end
+		end)
+	end)
+	UserInputService.InputChanged:Connect(function(inp)
+		if not _drag or inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+		local d = inp.Position - _dStart
+		frame.Position = UDim2.fromOffset(
+			math.clamp(_dPos.X.Offset + d.X, 0, workspace.CurrentCamera.ViewportSize.X - frame.AbsoluteSize.X),
+			math.clamp(_dPos.Y.Offset + d.Y, 0, workspace.CurrentCamera.ViewportSize.Y - frame.AbsoluteSize.Y)
+		)
+	end)
+
+	-- populate entries
+	local function addEntry(entry)
+		local row = Instance.new("Frame")
+		row.BackgroundTransparency = 1
+		row.BorderSizePixel = 0
+		row.Size = UDim2.new(1, 0, 0, 22)
+		row.ZIndex = 102
+		row.Parent = container
+
+		local rList = Instance.new("UIListLayout")
+		rList.FillDirection = Enum.FillDirection.Horizontal
+		rList.VerticalAlignment = Enum.VerticalAlignment.Center
+		rList.Padding = UDim.new(0, 6)
+		rList.Parent = row
+
+		-- key badge
+		local badge = Instance.new("TextLabel")
+		badge.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+		badge.BackgroundTransparency = 0
+		badge.BorderSizePixel = 0
+		badge.Size = UDim2.fromOffset(28, 16)
+		badge.TextColor3 = Color3.fromRGB(255, 255, 255)
+		badge.TextSize = 11
+		badge.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
+		badge.ZIndex = 103
+		badge.Parent = row
+
+		local badgeCorner = Instance.new("UICorner")
+		badgeCorner.CornerRadius = UDim.new(0, 4)
+		badgeCorner.Parent = badge
+
+		local badgeStroke = Instance.new("UIStroke")
+		badgeStroke.Color = Color3.fromRGB(255, 255, 255)
+		badgeStroke.Transparency = 0.85
+		badgeStroke.Parent = badge
+
+		-- name label
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.AutomaticSize = Enum.AutomaticSize.X
+		nameLbl.Size = UDim2.fromScale(0, 1)
+		nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLbl.TextTransparency = 0.3
+		nameLbl.TextSize = 12
+		nameLbl.FontFace = Font.new(assets.interFont)
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+		nameLbl.ZIndex = 103
+		nameLbl.Parent = row
+
+		entry.badge = badge
+		entry.row = row
+
+		local function refresh()
+			local k = entry.getKey and entry.getKey() or Enum.KeyCode.Unknown
+			if k == Enum.KeyCode.Unknown then
+				badge.Text = "—"
+				badge.TextTransparency = 0.6
+			else
+				badge.Text = k.Name:len() == 1 and k.Name or k.Name:sub(1,3)
+				badge.TextTransparency = 0
+			end
+			nameLbl.Text = (entry.name or "?") .. " (" .. (entry.mode or "Toggle") .. ")"
+		end
+		refresh()
+		entry.refreshBadge = refresh
+	end
+
+	for _, entry in ipairs(MacLib._keybindReg) do
+		addEntry(entry)
+	end
+
+	_keybindMenu = {
+		Frame     = frame,
+		Container = container,
+		addEntry  = addEntry,
+		SetVisible = function(_, v) frame.Visible = v end,
+		Toggle     = function(_) frame.Visible = not frame.Visible end,
+	}
+
+	table.insert(MacLib._accentElements, { inst=titleBar, prop="BackgroundColor3" })
+
+	return _keybindMenu
+end
+
+
 local _activeLoading = nil
 
 function MacLib:CreateLoading(info)
@@ -568,20 +757,42 @@ function MacLib:Window(Settings)
 		MacLib.Icons = nil
 		MacLib.Accent = Color3.fromRGB(138, 79, 255)
 		MacLib._accentElements = {}
-		function MacLib:SetAccent(color)
-			MacLib.Accent = color
-			local info = TweenInfo.new(0.2, Enum.EasingStyle.Sine)
-			for _, entry in ipairs(MacLib._accentElements) do
-				pcall(function()
-					if entry.inst and entry.inst.Parent then
-						if entry.prop then
-							local c = entry.getColor and entry.getColor() or color
-							TweenService:Create(entry.inst, info, { [entry.prop] = c }):Play()
-						end
+	MacLib._titleUpdater = nil  -- set by Window to update gradient title on accent change
+
+	function MacLib:SetAccent(color)
+		MacLib.Accent = color
+		MacLib.Scheme.AccentColor = color
+		local info = TweenInfo.new(0.2, Enum.EasingStyle.Sine)
+		for _, entry in ipairs(MacLib._accentElements) do
+			pcall(function()
+				if entry.inst and entry.inst.Parent then
+					if entry.prop then
+						local c = entry.getColor and entry.getColor() or color
+						TweenService:Create(entry.inst, info, { [entry.prop] = c }):Play()
 					end
-				end)
-			end
+				end
+			end)
 		end
+		if MacLib._titleUpdater then pcall(MacLib._titleUpdater, color) end
+	end
+
+	function MacLib:SetScheme(prop, color)
+		if MacLib.Scheme[prop] then
+			MacLib.Scheme[prop] = color
+		end
+		if prop == "AccentColor" then
+			MacLib:SetAccent(color)
+		end
+		-- update registered scheme elements
+		for _, entry in ipairs(MacLib._accentElements) do
+			pcall(function()
+				if entry.schemeProp == prop and entry.inst and entry.inst.Parent then
+					TweenService:Create(entry.inst, TweenInfo.new(0.2, Enum.EasingStyle.Sine),
+						{ [entry.prop] = color }):Play()
+				end
+			end)
+		end
+	end
 	end
 
 	local WindowFunctions = {Settings = Settings}
@@ -2152,8 +2363,8 @@ function MacLib:Window(Settings)
 				local section = Instance.new("Frame")
 				section.Name = "Section"
 				section.AutomaticSize = Enum.AutomaticSize.Y
-				section.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-				section.BackgroundTransparency = 0.94
+				section.BackgroundColor3 = MacLib.Scheme.MainColor
+				section.BackgroundTransparency = 0
 				section.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				section.BorderSizePixel = 0
 				section.Position = UDim2.fromScale(0, 6.78e-08)
@@ -2169,8 +2380,8 @@ function MacLib:Window(Settings)
 				local sectionUIStroke = Instance.new("UIStroke")
 				sectionUIStroke.Name = "SectionUIStroke"
 				sectionUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-				sectionUIStroke.Color = Color3.fromRGB(255, 255, 255)
-				sectionUIStroke.Transparency = 0.90
+				sectionUIStroke.Color = MacLib.Scheme.OutlineColor
+				sectionUIStroke.Transparency = 0
 				sectionUIStroke.Parent = section
 
 				local sectionUIListLayout = Instance.new("UIListLayout")
@@ -2546,6 +2757,15 @@ function MacLib:Window(Settings)
 
 						updatePicker()
 
+						-- register in global keybind list
+						local _kbEntry = {
+							name    = ToggleFunctions.Settings.Name or "?",
+							mode    = "Toggle",
+							getKey  = function() return boundKey end,
+						}
+						table.insert(MacLib._keybindReg, _kbEntry)
+						if _keybindMenu then _keybindMenu.addEntry(_kbEntry) end
+
 						picker.MouseButton1Click:Connect(function()
 							picking = not picking
 							updatePicker()
@@ -2558,19 +2778,18 @@ function MacLib:Window(Settings)
 									boundKey = inp.KeyCode
 									picking = false
 									updatePicker()
+									if _kbEntry.refreshBadge then _kbEntry.refreshBadge() end
 									if ToggleFunctions.Settings.onBinded then
 										ToggleFunctions.Settings.onBinded(boundKey)
 									end
 								end
 								return
 							end
-							-- fire toggle when key pressed (not Unknown)
 							if boundKey ~= Enum.KeyCode.Unknown and inp.UserInputType == Enum.UserInputType.Keyboard and inp.KeyCode == boundKey then
 								Toggle()
 							end
 						end)
 
-						-- widen toggleName to leave room for picker
 						toggleName.Size = UDim2.new(1, -80, 0, 0)
 					end
 					-- ────────────────────────────────────────────────────────────
@@ -6499,7 +6718,7 @@ function MacLib:Window(Settings)
 
 	if not isMobile then _showCursor(true) end
 
-	-- Live player list updates for SpecialType="Player" dropdowns
+	-- Live player list updates
 	Players.PlayerAdded:Connect(function()
 		for _, d in ipairs(MacLib._playerDrops) do pcall(d.refresh) end
 	end)
@@ -6509,9 +6728,14 @@ function MacLib:Window(Settings)
 		end)
 	end)
 
+	-- Title gradient updater — call Window:SetTitleUpdater(fn) in main script
+	function WindowFunctions:SetTitleUpdater(fn) MacLib._titleUpdater = fn end
+	function WindowFunctions:GetKeybindMenu() return MacLib:CreateKeybindMenu() end
+
 	-- Expose feature APIs on Window
 	function WindowFunctions:SetDPIScale(scale) MacLib:SetDPIScale(scale) end
 	function WindowFunctions:SetFont(f) MacLib:SetFont(f) end
+	function WindowFunctions:SetScheme(prop, color) MacLib:SetScheme(prop, color) end
 	function WindowFunctions:SetCursorIcon(name) MacLib:SetCursorIcon(name) end
 	function WindowFunctions:SetCursorIconSize(u) MacLib:SetCursorIconSize(u) end
 	function WindowFunctions:ResetCursorIcon() MacLib:ResetCursorIcon() end
