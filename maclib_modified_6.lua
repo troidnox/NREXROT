@@ -109,14 +109,14 @@ local function _showCursor(state)
 	if state then
 		RunService:BindToRenderStep(_cursorBinding, Enum.RenderPriority.Last.Value, function()
 			if not _cursor then return end
-			UserInputService.MouseIconEnabled = false
+			pcall(function() UserInputService.MouseIconEnabled = false end)
 			_cursor.Position = UDim2.fromOffset(_mouse.X, _mouse.Y)
 			_cursor.Visible = true
 		end)
 	else
 		pcall(function() RunService:UnbindFromRenderStep(_cursorBinding) end)
 		if _cursor then _cursor.Visible = false end
-		UserInputService.MouseIconEnabled = true
+		pcall(function() UserInputService.MouseIconEnabled = true end)
 	end
 end
 
@@ -589,11 +589,8 @@ function MacLib:Window(Settings)
 
 	local macLib = GetGui()
 
-	-- UIScale for DPI
-	local _uiScale = Instance.new("UIScale")
-	_uiScale.Scale = MacLib._dpi
-	_uiScale.Parent = macLib
-	table.insert(MacLib._scales, _uiScale)
+	-- UIScale for DPI — applied to base window only, NOT to macLib ScreenGui
+	-- (applying to ScreenGui would break cursor positioning)
 
 	-- Cursor
 	_cursor = Instance.new("Frame")
@@ -684,7 +681,9 @@ function MacLib:Window(Settings)
 
 	local baseUIScale = Instance.new("UIScale")
 	baseUIScale.Name = "BaseUIScale"
+	baseUIScale.Scale = MacLib._dpi
 	baseUIScale.Parent = base
+	table.insert(MacLib._scales, baseUIScale)
 
 	local baseUICorner = Instance.new("UICorner")
 	baseUICorner.Name = "BaseUICorner"
@@ -2340,8 +2339,8 @@ function MacLib:Window(Settings)
 					buttonInteract.Text = ButtonFunctions.Settings.Name
 
 					-- search + tooltip
-					_regSearch(ButtonFunctions.Settings.Name or "", button)
-					if ButtonFunctions.Settings.Tooltip then
+					_regSearch((ButtonFunctions.Settings and ButtonFunctions.Settings.Name) or "", button)
+					if ButtonFunctions.Settings and ButtonFunctions.Settings.Tooltip then
 						MacLib:AddTooltip(button, ButtonFunctions.Settings.Tooltip)
 					end
 
@@ -2432,9 +2431,9 @@ function MacLib:Window(Settings)
 					toggleName.Parent = toggle
 
 					-- search registration
-					_regSearch(ToggleFunctions.Settings.Name or "", toggle)
+					_regSearch((ToggleFunctions.Settings and ToggleFunctions.Settings.Name) or "", toggle)
 					-- tooltip
-					if ToggleFunctions.Settings.Tooltip then
+					if ToggleFunctions.Settings and ToggleFunctions.Settings.Tooltip then
 						MacLib:AddTooltip(toggle, ToggleFunctions.Settings.Tooltip)
 					end
 
@@ -2580,11 +2579,12 @@ function MacLib:Window(Settings)
 					sliderName.Position = UDim2.fromScale(1.3e-07, 0.5)
 					sliderName.Parent = slider
 
-					_regSearch(SliderFunctions.Settings.Name or "", slider)
-					if SliderFunctions.Settings.Tooltip then
+					_regSearch((SliderFunctions.Settings and SliderFunctions.Settings.Name) or "", slider)
+					if SliderFunctions.Settings and SliderFunctions.Settings.Tooltip then
 						MacLib:AddTooltip(slider, SliderFunctions.Settings.Tooltip)
 					end
-					sliderElements.Name = "SliderElements"
+
+					local sliderElements = Instance.new("Frame")
 					sliderElements.AnchorPoint = Vector2.new(1, 0)
 					sliderElements.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 					sliderElements.BackgroundTransparency = 1
