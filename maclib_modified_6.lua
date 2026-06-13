@@ -454,15 +454,25 @@ end
 
 local _activeLoading = nil
 
+-- Random music pool for loading screen
+local _loadingMusic = {
+	"rbxassetid://1843523891",
+	"rbxassetid://1837853307",
+	"rbxassetid://3037842988",
+	"rbxassetid://5982471293",
+	"rbxassetid://4913670308",
+}
+
 function MacLib:CreateLoading(info)
 	if _activeLoading then return _activeLoading end
 
 	info = info or {}
-	local title   = info.Title or "Loading"
-	local subtitle = info.Subtitle or ""
-	local icon    = info.Icon    -- lucide name
-	local width   = info.Width   or 420
-	local height  = info.Height  or 180
+	local title    = info.Title    or "Zero Hub"
+	local subtitle = info.Subtitle or "Loading..."
+	local logo     = info.Logo     or "rbxassetid://124065951370906"
+	local width    = info.Width    or 450
+	local height   = info.Height   or 280
+	local music    = info.Music    ~= false  -- play music by default
 
 	local parent = (gethui and gethui())
 		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
@@ -470,147 +480,228 @@ function MacLib:CreateLoading(info)
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "MacLibLoading"
 	sg.ResetOnSpawn = false
-	sg.DisplayOrder = 2147483646
+	sg.DisplayOrder = 2147483647
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = parent
 
-	local base = Instance.new("Frame")
-	base.AnchorPoint = Vector2.new(0.5, 0.5)
-	base.Position = UDim2.fromScale(0.5, 0.5)
-	base.Size = UDim2.fromOffset(width, height)
-	base.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-	base.BorderSizePixel = 0
-	base.Parent = sg
+	-- Dim overlay (fades in)
+	local overlay = Instance.new("Frame")
+	overlay.Name = "Overlay"
+	overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	overlay.BackgroundTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.ZIndex = 1
+	overlay.Parent = sg
 
-	local baseCorner = Instance.new("UICorner")
-	baseCorner.CornerRadius = UDim.new(0, 10)
-	baseCorner.Parent = base
+	-- Blurred background via DepthOfField on Lighting
+	local SoundService = MacLib.GetService("SoundService")
+	local _loadSound = nil
 
-	local baseStroke = Instance.new("UIStroke")
-	baseStroke.Color = Color3.fromRGB(255, 255, 255)
-	baseStroke.Transparency = 0.92
-	baseStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	baseStroke.Parent = base
-
-	-- make draggable
-	local _drag, _dragStart, _startPos = false, nil, nil
-	base.InputBegan:Connect(function(inp)
-		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-		_drag = true; _dragStart = inp.Position; _startPos = base.Position
-		inp.Changed:Connect(function()
-			if inp.UserInputState == Enum.UserInputState.End then _drag = false end
+	if music then
+		local pick = _loadingMusic[math.random(1, #_loadingMusic)]
+		task.spawn(function()
+			_loadSound = Instance.new("Sound")
+			_loadSound.SoundId = pick
+			_loadSound.Volume = 0.4
+			_loadSound.Looped = true
+			_loadSound.Parent = SoundService
+			_loadSound:Play()
+			-- fade in volume
+			for i = 0, 40 do
+				if not _loadSound or not _loadSound.Parent then break end
+				_loadSound.Volume = i / 100
+				task.wait(0.025)
+			end
 		end)
-	end)
-	UserInputService.InputChanged:Connect(function(inp)
-		if not _drag or inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-		local d = inp.Position - _dragStart
-		base.Position = UDim2.new(0.5, d.X, 0.5, d.Y)
-	end)
+	end
 
-	local content = Instance.new("Frame")
-	content.BackgroundTransparency = 1
-	content.Size = UDim2.fromScale(1, 1)
-	content.Parent = base
+	-- Card frame
+	local card = Instance.new("Frame")
+	card.Name = "Card"
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Position = UDim2.fromScale(0.5, 0.5)
+	card.Size = UDim2.fromOffset(width, height)
+	card.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+	card.BackgroundTransparency = 1
+	card.BorderSizePixel = 0
+	card.ZIndex = 2
+	card.Parent = sg
 
-	local cpad = Instance.new("UIPadding")
-	cpad.PaddingLeft = UDim.new(0, 28)
-	cpad.PaddingRight = UDim.new(0, 28)
-	cpad.PaddingTop = UDim.new(0, 22)
-	cpad.PaddingBottom = UDim.new(0, 20)
-	cpad.Parent = content
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 10)
+	cardCorner.Parent = card
 
-	local clist = Instance.new("UIListLayout")
-	clist.Padding = UDim.new(0, 6)
-	clist.SortOrder = Enum.SortOrder.LayoutOrder
-	clist.Parent = content
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	cardStroke.Color = Color3.fromRGB(255, 255, 255)
+	cardStroke.Transparency = 0.92
+	cardStroke.Parent = card
 
-	-- icon + title row
-	local titleRow = Instance.new("Frame")
-	titleRow.BackgroundTransparency = 1
-	titleRow.Size = UDim2.new(1, 0, 0, 28)
-	titleRow.LayoutOrder = 0
-	titleRow.Parent = content
+	-- TopBar (draggable)
+	local topBar = Instance.new("Frame")
+	topBar.Name = "TopBar"
+	topBar.BackgroundTransparency = 1
+	topBar.BorderSizePixel = 0
+	topBar.Size = UDim2.new(1, 0, 0, 48)
+	topBar.ZIndex = 3
+	topBar.Parent = card
 
-	local titleList = Instance.new("UIListLayout")
-	titleList.FillDirection = Enum.FillDirection.Horizontal
-	titleList.VerticalAlignment = Enum.VerticalAlignment.Center
-	titleList.Padding = UDim.new(0, 8)
-	titleList.Parent = titleRow
+	-- Divider under topbar
+	local topDivider = Instance.new("Frame")
+	topDivider.AnchorPoint = Vector2.new(0, 1)
+	topDivider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	topDivider.BackgroundTransparency = 0.92
+	topDivider.BorderSizePixel = 0
+	topDivider.Position = UDim2.fromScale(0, 1)
+	topDivider.Size = UDim2.new(1, 0, 0, 1)
+	topDivider.Parent = topBar
 
-	if icon then
-		local ic = resolveIcon(icon)
-		if ic then
-			local iconImg = Instance.new("ImageLabel")
-			iconImg.Image = ic.Url
-			iconImg.ImageRectOffset = ic.ImageRectOffset
-			iconImg.ImageRectSize = ic.ImageRectSize
-			iconImg.ImageColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
-			iconImg.BackgroundTransparency = 1
-			iconImg.Size = UDim2.fromOffset(22, 22)
-			iconImg.Parent = titleRow
-		end
+	-- Logo + title row inside topbar
+	local titleHolder = Instance.new("Frame")
+	titleHolder.BackgroundTransparency = 1
+	titleHolder.BorderSizePixel = 0
+	titleHolder.Size = UDim2.fromScale(1, 1)
+	titleHolder.Parent = topBar
+
+	local titleLayout = Instance.new("UIListLayout")
+	titleLayout.FillDirection = Enum.FillDirection.Horizontal
+	titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	titleLayout.Padding = UDim.new(0, 8)
+	titleLayout.Parent = titleHolder
+
+	local titlePad = Instance.new("UIPadding")
+	titlePad.PaddingLeft = UDim.new(0, 16)
+	titlePad.Parent = titleHolder
+
+	if logo and logo ~= "" then
+		local logoImg = Instance.new("ImageLabel")
+		logoImg.Image = logo
+		logoImg.BackgroundTransparency = 1
+		logoImg.BorderSizePixel = 0
+		logoImg.Size = UDim2.fromOffset(28, 28)
+		logoImg.ZIndex = 3
+		logoImg.Parent = titleHolder
 	end
 
 	local titleLbl = Instance.new("TextLabel")
 	titleLbl.BackgroundTransparency = 1
+	titleLbl.BorderSizePixel = 0
 	titleLbl.AutomaticSize = Enum.AutomaticSize.XY
 	titleLbl.Text = title
 	titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleLbl.TextSize = 16
+	titleLbl.TextTransparency = 0.05
+	titleLbl.TextSize = 18
 	titleLbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold)
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
-	titleLbl.Parent = titleRow
+	titleLbl.ZIndex = 3
+	titleLbl.Parent = titleHolder
 
-	-- subtitle
+	-- Drag the card by topbar
+	do
+		local _ldrag, _ldStart, _ldPos = false, nil, nil
+		topBar.InputBegan:Connect(function(inp)
+			if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+			_ldrag = true
+			_ldStart = inp.Position
+			_ldPos = card.Position
+			inp.Changed:Connect(function()
+				if inp.UserInputState == Enum.UserInputState.End then _ldrag = false end
+			end)
+		end)
+		UserInputService.InputChanged:Connect(function(inp)
+			if not _ldrag or inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+			local d = inp.Position - _ldStart
+			local vp = workspace.CurrentCamera.ViewportSize
+			card.Position = UDim2.new(
+				0.5, math.clamp((_ldPos.X.Offset or 0) + d.X, -(width / 2), vp.X - width / 2),
+				0.5, math.clamp((_ldPos.Y.Offset or 0) + d.Y, -(height / 2), vp.Y - height / 2)
+			)
+		end)
+	end
+
+	-- Inner content
+	local inner = Instance.new("Frame")
+	inner.BackgroundTransparency = 1
+	inner.BorderSizePixel = 0
+	inner.Position = UDim2.fromOffset(0, 49)
+	inner.Size = UDim2.new(1, 0, 1, -49)
+	inner.ZIndex = 2
+	inner.Parent = card
+
+	local innerPad = Instance.new("UIPadding")
+	innerPad.PaddingLeft = UDim.new(0, 28)
+	innerPad.PaddingRight = UDim.new(0, 28)
+	innerPad.PaddingTop = UDim.new(0, 16)
+	innerPad.PaddingBottom = UDim.new(0, 20)
+	innerPad.Parent = inner
+
+	local innerList = Instance.new("UIListLayout")
+	innerList.FillDirection = Enum.FillDirection.Vertical
+	innerList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	innerList.VerticalAlignment = Enum.VerticalAlignment.Center
+	innerList.Padding = UDim.new(0, 10)
+	innerList.Parent = inner
+
 	local subLbl = Instance.new("TextLabel")
 	subLbl.BackgroundTransparency = 1
-	subLbl.Size = UDim2.new(1, 0, 0, 0)
+	subLbl.BorderSizePixel = 0
 	subLbl.AutomaticSize = Enum.AutomaticSize.Y
+	subLbl.Size = UDim2.new(1, 0, 0, 0)
 	subLbl.Text = subtitle
 	subLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 	subLbl.TextTransparency = 0.55
 	subLbl.TextSize = 13
 	subLbl.FontFace = Font.new(assets.interFont)
-	subLbl.TextXAlignment = Enum.TextXAlignment.Left
+	subLbl.TextXAlignment = Enum.TextXAlignment.Center
 	subLbl.TextWrapped = true
-	subLbl.LayoutOrder = 1
-	subLbl.Parent = content
+	subLbl.ZIndex = 2
+	subLbl.Parent = inner
 
-	-- progress bar
+	-- Progress bar background
 	local barBg = Instance.new("Frame")
 	barBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	barBg.BackgroundTransparency = 0.9
+	barBg.BackgroundTransparency = 0.88
 	barBg.BorderSizePixel = 0
 	barBg.Size = UDim2.new(1, 0, 0, 4)
-	barBg.LayoutOrder = 2
-	barBg.Parent = content
+	barBg.ZIndex = 2
+	barBg.Parent = inner
 
-	local barCorner1 = Instance.new("UICorner")
-	barCorner1.CornerRadius = UDim.new(1, 0)
-	barCorner1.Parent = barBg
+	local barBgCorner = Instance.new("UICorner")
+	barBgCorner.CornerRadius = UDim.new(1, 0)
+	barBgCorner.Parent = barBg
 
+	-- Progress fill
 	local barFill = Instance.new("Frame")
 	barFill.BackgroundColor3 = MacLib.Accent or Color3.fromRGB(138, 79, 255)
 	barFill.BorderSizePixel = 0
 	barFill.Size = UDim2.fromScale(0, 1)
+	barFill.ZIndex = 3
 	barFill.Parent = barBg
 
-	local barCorner2 = Instance.new("UICorner")
-	barCorner2.CornerRadius = UDim.new(1, 0)
-	barCorner2.Parent = barFill
+	local barFillCorner = Instance.new("UICorner")
+	barFillCorner.CornerRadius = UDim.new(1, 0)
+	barFillCorner.Parent = barFill
 
-	-- step label
+	-- Step label
 	local stepLbl = Instance.new("TextLabel")
 	stepLbl.BackgroundTransparency = 1
+	stepLbl.BorderSizePixel = 0
 	stepLbl.Size = UDim2.new(1, 0, 0, 14)
 	stepLbl.Text = ""
 	stepLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 	stepLbl.TextTransparency = 0.6
 	stepLbl.TextSize = 12
 	stepLbl.FontFace = Font.new(assets.interFont)
-	stepLbl.TextXAlignment = Enum.TextXAlignment.Left
-	stepLbl.LayoutOrder = 3
-	stepLbl.Parent = content
+	stepLbl.TextXAlignment = Enum.TextXAlignment.Center
+	stepLbl.ZIndex = 2
+	stepLbl.Parent = inner
+
+	-- Fade in: overlay dims, card slides in
+	local tw = TweenInfo.new(0.35, Enum.EasingStyle.Sine)
+	Tween(overlay, tw, { BackgroundTransparency = 0.55 }):Play()
+	card.BackgroundTransparency = 1
+	Tween(card, tw, { BackgroundTransparency = 0 }):Play()
 
 	local Loading = {}
 	Loading.ScreenGui = sg
@@ -619,21 +710,37 @@ function MacLib:CreateLoading(info)
 	function Loading:SetSubtitle(t) subLbl.Text = t end
 
 	function Loading:SetStep(current, total, label)
-		local pct = total and total > 0 and (current / total) or 0
-		Tween(barFill, TweenInfo.new(0.2, Enum.EasingStyle.Sine), { Size = UDim2.fromScale(pct, 1) }):Play()
+		local pct = (total and total > 0) and (current / total) or 0
+		Tween(barFill, TweenInfo.new(0.2, Enum.EasingStyle.Sine), { Size = UDim2.fromScale(math.clamp(pct, 0, 1), 1) }):Play()
 		if label then stepLbl.Text = label end
 	end
 
 	function Loading:Finish(callback)
-		task.delay(0.3, function()
-			Tween(base, TweenInfo.new(0.4, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
-			task.delay(0.4, function()
+		task.delay(0.2, function()
+			-- fade out music
+			if _loadSound and _loadSound.Parent then
+				task.spawn(function()
+					local vol = _loadSound.Volume
+					for i = 40, 0, -1 do
+						if not _loadSound or not _loadSound.Parent then break end
+						_loadSound.Volume = (i / 40) * vol
+						task.wait(0.02)
+					end
+					if _loadSound and _loadSound.Parent then _loadSound:Destroy() end
+				end)
+			end
+			local out = TweenInfo.new(0.3, Enum.EasingStyle.Sine)
+			Tween(overlay, out, { BackgroundTransparency = 1 }):Play()
+			Tween(card, out, { BackgroundTransparency = 1 }):Play()
+			task.delay(0.35, function()
 				sg:Destroy()
 				_activeLoading = nil
 				if callback then callback() end
 			end)
 		end)
 	end
+
+	Loading.Destroy = Loading.Finish
 
 	_activeLoading = Loading
 	return Loading
@@ -807,11 +914,14 @@ function MacLib:Window(Settings)
 	-- UIScale for DPI — applied to base window only, NOT to macLib ScreenGui
 	-- (applying to ScreenGui would break cursor positioning)
 
-	-- Cursor
+	-- Cursor (white crosshair with dark outline)
+	-- ScreenGui uses ZIndexBehavior.Sibling: children always render above parents regardless of ZIndex.
+	-- ZIndex only controls sibling order. Fix: all 4 pieces are siblings inside a transparent
+	-- container — white arms at ZIndex 2, dark outlines at ZIndex 1. White renders on top. ✓
 	_cursor = Instance.new("Frame")
 	_cursor.Name = "Cursor"
 	_cursor.AnchorPoint = Vector2.new(0.5, 0.5)
-	_cursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_cursor.BackgroundTransparency = 1
 	_cursor.BorderSizePixel = 0
 	_cursor.Size = UDim2.fromOffset(9, 1)
 	_cursor.Visible = false
@@ -824,26 +934,35 @@ function MacLib:Window(Settings)
 	_cursorBorderH.BorderSizePixel = 0
 	_cursorBorderH.Position = UDim2.fromScale(0.5, 0.5)
 	_cursorBorderH.Size = UDim2.new(1, 2, 1, 2)
-	_cursorBorderH.ZIndex = 10999
+	_cursorBorderH.ZIndex = 1
 	_cursorBorderH.Parent = _cursor
 
-	_cursorV = Instance.new("Frame")
-	_cursorV.AnchorPoint = Vector2.new(0.5, 0.5)
-	_cursorV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	_cursorV.BorderSizePixel = 0
-	_cursorV.Position = UDim2.fromScale(0.5, 0.5)
-	_cursorV.Size = UDim2.fromOffset(1, 9)
-	_cursorV.ZIndex = 11000
-	_cursorV.Parent = _cursor
+	local _cursorArmH = Instance.new("Frame")
+	_cursorArmH.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorArmH.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_cursorArmH.BorderSizePixel = 0
+	_cursorArmH.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorArmH.Size = UDim2.fromScale(1, 1)
+	_cursorArmH.ZIndex = 2
+	_cursorArmH.Parent = _cursor
 
 	local _cursorBorderV = Instance.new("Frame")
 	_cursorBorderV.AnchorPoint = Vector2.new(0.5, 0.5)
 	_cursorBorderV.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	_cursorBorderV.BorderSizePixel = 0
 	_cursorBorderV.Position = UDim2.fromScale(0.5, 0.5)
-	_cursorBorderV.Size = UDim2.new(1, 2, 1, 2)
-	_cursorBorderV.ZIndex = 10999
-	_cursorBorderV.Parent = _cursorV
+	_cursorBorderV.Size = UDim2.fromOffset(3, 11)
+	_cursorBorderV.ZIndex = 1
+	_cursorBorderV.Parent = _cursor
+
+	local _cursorArmV = Instance.new("Frame")
+	_cursorArmV.AnchorPoint = Vector2.new(0.5, 0.5)
+	_cursorArmV.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_cursorArmV.BorderSizePixel = 0
+	_cursorArmV.Position = UDim2.fromScale(0.5, 0.5)
+	_cursorArmV.Size = UDim2.fromOffset(1, 9)
+	_cursorArmV.ZIndex = 2
+	_cursorArmV.Parent = _cursor
 
 	-- Cursor custom icon (ChangeCursorIcon)
 	_cursorCustomImg = Instance.new("ImageLabel")
@@ -1466,7 +1585,7 @@ function MacLib:Window(Settings)
 	uIPadding2.PaddingRight = UDim.new(0, 20)
 	uIPadding2.Parent = elements
 
-	local moveIcon = Instance.new("ImageButton")
+	local moveIcon = Instance.new("ImageLabel")
 	moveIcon.Name = "MoveIcon"
 	moveIcon.Image = assets.transform
 	moveIcon.ImageTransparency = 0.7
@@ -1479,40 +1598,6 @@ function MacLib:Window(Settings)
 	moveIcon.Size = UDim2.fromOffset(15, 15)
 	moveIcon.Parent = elements
 	moveIcon.Visible = not Settings.DragStyle or Settings.DragStyle == 1
-
-	local interact = Instance.new("TextButton")
-	interact.Name = "Interact"
-	interact.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
-	interact.Text = ""
-	interact.TextColor3 = Color3.fromRGB(0, 0, 0)
-	interact.TextSize = 14
-	interact.AnchorPoint = Vector2.new(0.5, 0.5)
-	interact.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	interact.BackgroundTransparency = 1
-	interact.BorderColor3 = Color3.fromRGB(0, 0, 0)
-	interact.BorderSizePixel = 0
-	interact.Position = UDim2.fromScale(0.5, 0.5)
-	interact.Size = UDim2.fromOffset(40, 40)
-	interact.Parent = moveIcon
-
-	local function ChangemoveIconState(State)
-		if State == "Default" then
-			Tween(moveIcon, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
-				ImageTransparency = 0.7
-			}):Play()
-		elseif State == "Hover" then
-			Tween(moveIcon, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
-				ImageTransparency = 0.4
-			}):Play()
-		end
-	end
-
-	interact.MouseEnter:Connect(function()
-		ChangemoveIconState("Hover")
-	end)
-	interact.MouseLeave:Connect(function()
-		ChangemoveIconState("Default")
-	end)
 
 	local dragging_ = false
 	local dragInput
@@ -1545,21 +1630,29 @@ function MacLib:Window(Settings)
 	end
 
 	if not Settings.DragStyle or Settings.DragStyle == 1 then
-		interact.InputBegan:Connect(function(input)
+		-- Obsidian style: full topbar is the drag zone
+		local topbarInteract = Instance.new("TextButton")
+		topbarInteract.Name = "TopbarInteract"
+		topbarInteract.BackgroundTransparency = 1
+		topbarInteract.BorderSizePixel = 0
+		topbarInteract.Text = ""
+		topbarInteract.Size = UDim2.fromScale(1, 1)
+		topbarInteract.ZIndex = 0
+		topbarInteract.Parent = topbar
+
+		topbarInteract.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				onDragStart(input)
 			end
 		end)
-
-		interact.InputChanged:Connect(onDragUpdate)
-
-		UserInputService.InputChanged:Connect(function(input)
-			if input == dragInput and dragging_ then
-				update(input)
-			end
+		topbarInteract.InputChanged:Connect(onDragUpdate)
+		topbarInteract.MouseEnter:Connect(function()
+			Tween(moveIcon, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { ImageTransparency = 0.4 }):Play()
 		end)
-
-		interact.InputEnded:Connect(function(input)
+		topbarInteract.MouseLeave:Connect(function()
+			Tween(moveIcon, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { ImageTransparency = 0.7 }):Play()
+		end)
+		topbarInteract.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging_ = false
 			end
@@ -1573,18 +1666,18 @@ function MacLib:Window(Settings)
 
 		base.InputChanged:Connect(onDragUpdate)
 
-		UserInputService.InputChanged:Connect(function(input)
-			if input == dragInput and dragging_ then
-				update(input)
-			end
-		end)
-
 		base.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging_ = false
 			end
 		end)
 	end
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging_ then
+			update(input)
+		end
+	end)
 
 	local currentTab = Instance.new("TextLabel")
 	currentTab.Name = "CurrentTab"
@@ -3271,7 +3364,6 @@ function MacLib:Window(Settings)
 					keybind.AutomaticSize = Enum.AutomaticSize.Y
 					keybind.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 					keybind.BackgroundTransparency = 1
-					keybind.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					keybind.BorderSizePixel = 0
 					keybind.Size = UDim2.new(1, 0, 0, 38)
 					keybind.Parent = section
@@ -3288,143 +3380,173 @@ function MacLib:Window(Settings)
 					keybindName.TextXAlignment = Enum.TextXAlignment.Left
 					keybindName.TextYAlignment = Enum.TextYAlignment.Top
 					keybindName.AnchorPoint = Vector2.new(0, 0.5)
-					keybindName.AutomaticSize = Enum.AutomaticSize.XY
-					keybindName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					keybindName.AutomaticSize = Enum.AutomaticSize.Y
 					keybindName.BackgroundTransparency = 1
-					keybindName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					keybindName.BorderSizePixel = 0
 					keybindName.Position = UDim2.fromScale(0, 0.5)
+					keybindName.Size = UDim2.new(1, -80, 0, 0)
 					keybindName.Parent = keybind
 
-					local binderBox = Instance.new("TextBox")
-					binderBox.Name = "BinderBox"
-					binderBox.CursorPosition = -1
-					binderBox.FontFace = Font.new(assets.interFont)
-					binderBox.PlaceholderText = "..."
-					binderBox.Text = ""
-					binderBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-					binderBox.TextSize = 12
-					binderBox.TextTransparency = 0.1
-					binderBox.AnchorPoint = Vector2.new(1, 0.5)
-					binderBox.AutomaticSize = Enum.AutomaticSize.X
-					binderBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					binderBox.BackgroundTransparency = 0.95
-					binderBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
-					binderBox.BorderSizePixel = 0
-					binderBox.ClipsDescendants = true
-					binderBox.LayoutOrder = 1
-					binderBox.Position = UDim2.fromScale(1, 0.5)
-					binderBox.Size = UDim2.fromOffset(21, 21)
+					-- Badge button (MacLib style)
+					local badge = Instance.new("TextButton")
+					badge.Name = "KeybindBadge"
+					badge.AutoButtonColor = false
+					badge.FontFace = Font.new(assets.interFont, Enum.FontWeight.Medium)
+					badge.Text = "None"
+					badge.TextColor3 = Color3.fromRGB(255, 255, 255)
+					badge.TextTransparency = 0.15
+					badge.TextSize = 12
+					badge.AnchorPoint = Vector2.new(1, 0.5)
+					badge.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+					badge.BackgroundTransparency = 0
+					badge.BorderSizePixel = 0
+					badge.ClipsDescendants = true
+					badge.Position = UDim2.fromScale(1, 0.5)
+					badge.Size = UDim2.fromOffset(60, 22)
+					badge.Parent = keybind
 
-					local binderBoxUICorner = Instance.new("UICorner")
-					binderBoxUICorner.Name = "BinderBoxUICorner"
-					binderBoxUICorner.CornerRadius = UDim.new(0, 4)
-					binderBoxUICorner.Parent = binderBox
+					local badgeCorner = Instance.new("UICorner")
+					badgeCorner.CornerRadius = UDim.new(0, 4)
+					badgeCorner.Parent = badge
 
-					local binderBoxUIStroke = Instance.new("UIStroke")
-					binderBoxUIStroke.Name = "BinderBoxUIStroke"
-					binderBoxUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-					binderBoxUIStroke.Color = Color3.fromRGB(255, 255, 255)
-					binderBoxUIStroke.Transparency = 0.9
-					binderBoxUIStroke.Parent = binderBox
+					local badgeStroke = Instance.new("UIStroke")
+					badgeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					badgeStroke.Color = Color3.fromRGB(255, 255, 255)
+					badgeStroke.Transparency = 0.85
+					badgeStroke.Parent = badge
 
-					local binderBoxUIPadding = Instance.new("UIPadding")
-					binderBoxUIPadding.Name = "BinderBoxUIPadding"
-					binderBoxUIPadding.PaddingLeft = UDim.new(0, 5)
-					binderBoxUIPadding.PaddingRight = UDim.new(0, 5)
-					binderBoxUIPadding.Parent = binderBox
+					local badgePad = Instance.new("UIPadding")
+					badgePad.PaddingLeft = UDim.new(0, 7)
+					badgePad.PaddingRight = UDim.new(0, 7)
+					badgePad.Parent = badge
 
-					local binderBoxUISizeConstraint = Instance.new("UISizeConstraint")
-					binderBoxUISizeConstraint.Name = "BinderBoxUISizeConstraint"
-					binderBoxUISizeConstraint.Parent = binderBox
-
-					binderBox.Parent = keybind
-
-					local focused
 					local isBinding = false
-					local reset = false
 					local binded = KeybindFunctions.Settings.Default
 
-					local function resetFocusState()
-						focused = false
-						isBinding = false
-						binderBox:ReleaseFocus()
+					local function getBadgeText(key)
+						if not key then return "None" end
+						local name = typeof(key) == "EnumItem" and key.Name or tostring(key)
+						-- abbreviate long names to fit badge
+						if #name > 8 then name = name:sub(1, 7) .. "." end
+						return name
 					end
 
-					if binded then
-						binderBox.Text = binded.Name
+					local function setBadgeIdle()
+						badge.Text = getBadgeText(binded)
+						Tween(badge, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { BackgroundColor3 = Color3.fromRGB(28, 28, 28) }):Play()
+						Tween(badgeStroke, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { Transparency = 0.85 }):Play()
 					end
 
-					binderBox.Focused:Connect(function()
-						focused = true
+					local function setBadgeListening()
+						badge.Text = "..."
+						Tween(badge, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { BackgroundColor3 = Color3.fromRGB(40, 40, 40) }):Play()
+						Tween(badgeStroke, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { Transparency = 0.65 }):Play()
+					end
+
+					if binded then setBadgeIdle() end
+
+					badge.MouseEnter:Connect(function()
+						if not isBinding then
+							Tween(badge, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { BackgroundColor3 = Color3.fromRGB(38, 38, 38) }):Play()
+						end
+					end)
+					badge.MouseLeave:Connect(function()
+						if not isBinding then setBadgeIdle() end
 					end)
 
-					binderBox.FocusLost:Connect(function()
-						focused = false
+					badge.MouseButton1Click:Connect(function()
+						if isBinding then return end
+						isBinding = true
+						setBadgeListening()
+
+						local conn
+						conn = UserInputService.InputBegan:Connect(function(inp)
+							if inp.UserInputType == Enum.UserInputType.Keyboard then
+								local kc = inp.KeyCode
+								if kc == Enum.KeyCode.Escape then
+									isBinding = false
+									conn:Disconnect()
+									setBadgeIdle()
+									return
+								end
+								if KeybindFunctions.Settings.Blacklist and
+									(table.find(KeybindFunctions.Settings.Blacklist, kc) or
+									table.find(KeybindFunctions.Settings.Blacklist, inp.UserInputType)) then
+									isBinding = false
+									conn:Disconnect()
+									setBadgeIdle()
+									return
+								end
+								binded = kc
+							elseif inp.UserInputType == Enum.UserInputType.MouseButton1
+								or inp.UserInputType == Enum.UserInputType.MouseButton2 then
+								binded = inp.UserInputType
+							else
+								return
+							end
+
+							isBinding = false
+							conn:Disconnect()
+
+							if KeybindFunctions.Settings.onBinded then
+								KeybindFunctions.Settings.onBinded(binded)
+							end
+
+							-- refresh keybind panel entry if it exists
+							if KeybindFunctions._panelEntry and KeybindFunctions._panelEntry.refreshBadge then
+								KeybindFunctions._panelEntry.refreshBadge()
+							end
+
+							setBadgeIdle()
+						end)
 					end)
 
 					UserInputService.InputBegan:Connect(function(inp)
-						if focused and not isBinding then
-							isBinding = true
-
-							local Event
-							Event = UserInputService.InputBegan:Connect(function(input)
-								if KeybindFunctions.Settings.Blacklist and (table.find(KeybindFunctions.KeybindFunctions.Settings.Blacklist, input.KeyCode) or table.find(KeybindFunctions.Settings.Blacklist, input.UserInputType)) then
-									binderBox:ReleaseFocus()
-									resetFocusState()
-									Event:Disconnect()
-									return
-								end
-
-								if input.UserInputType == Enum.UserInputType.Keyboard then
-									binded = input.KeyCode
-									binderBox.Text = input.KeyCode.Name
-								elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-									binded = input.UserInputType
-									binderBox.Text = input.UserInputType.Name
-								end
-
-								if KeybindFunctions.Settings.onBinded then
-									KeybindFunctions.Settings.onBinded(binded)
-								end
-								reset = true
-								resetFocusState()
-								Event:Disconnect()
-							end)
-						else
-							if not reset and (inp.KeyCode == binded or inp.UserInputType == binded) then
-								-- Never fire if bound to Unknown
-								if binded == Enum.KeyCode.Unknown then return end
-								if KeybindFunctions.Settings.Callback then
-									KeybindFunctions.Settings.Callback(binded)
-								end
-								if KeybindFunctions.Settings.onBindHeld then
-									KeybindFunctions.Settings.onBindHeld(true, binded)
-								end
-							else
-								reset = false
+						if isBinding then return end
+						if not binded then return end
+						if inp.KeyCode == binded or inp.UserInputType == binded then
+							if binded == Enum.KeyCode.Unknown then return end
+							if KeybindFunctions.Settings.Callback then
+								KeybindFunctions.Settings.Callback(binded)
+							end
+							if KeybindFunctions.Settings.onBindHeld then
+								KeybindFunctions.Settings.onBindHeld(true, binded)
 							end
 						end
 					end)
 
 					UserInputService.InputEnded:Connect(function(inp)
-						if not focused and not isBinding then
-							if inp.KeyCode == binded or inp.UserInputType == binded then
-								if Settings.onBindHeld then
-									Settings.onBindHeld(false, binded)
-								end
+						if isBinding then return end
+						if not binded then return end
+						if inp.KeyCode == binded or inp.UserInputType == binded then
+							if KeybindFunctions.Settings.onBindHeld then
+								KeybindFunctions.Settings.onBindHeld(false, binded)
 							end
 						end
 					end)
 
+					-- Register in keybind panel
+					if MacLib._keybindReg then
+						local entry = {
+							name    = KeybindFunctions.Settings.Name or "",
+							mode    = "Hold",
+							getKey  = function() return binded end,
+						}
+						KeybindFunctions._panelEntry = entry
+						table.insert(MacLib._keybindReg, entry)
+						if _keybindMenu then
+							_keybindMenu.addEntry(entry)
+						end
+					end
+
 					function KeybindFunctions:Bind(Key)
 						binded = Key
-						binderBox.Text = Key.Name
+						setBadgeIdle()
 					end
 
 					function KeybindFunctions:Unbind()
 						binded = nil
-						binderBox.Text = ""
+						badge.Text = "None"
 					end
 
 					function KeybindFunctions:GetBind()
@@ -3432,7 +3554,7 @@ function MacLib:Window(Settings)
 					end
 
 					function KeybindFunctions:UpdateName(Name)
-						keybindName = Name
+						keybindName.Text = Name
 					end
 
 					function KeybindFunctions:SetVisibility(State)
